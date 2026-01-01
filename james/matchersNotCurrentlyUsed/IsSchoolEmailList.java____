@@ -1,0 +1,19 @@
+package org.apache.james.transport.matchers;
+
+import org.apache.mailet.base.GenericRecipientMatcher;
+import org.apache.mailet.MailAddress;
+
+
+public class IsSchoolEmailList extends GenericRecipientMatcher {
+
+    public boolean matchRecipient(MailAddress recipient) {
+        try
+        {
+           return ( recipient.toString().substring( 0,15).equals( "schoolmaillist-") );
+        }
+        catch( Exception e)
+        {
+           return( false );
+        }
+    }
+}

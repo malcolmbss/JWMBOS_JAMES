@@ -1,0 +1,32 @@
+package org.apache.james.transport.matchers;
+
+import org.apache.mailet.base.GenericMatcher;
+import org.apache.mailet.MailAddress;
+import org.apache.mailet.*;
+import java.util.Collection;
+import java.util.Vector;
+
+public class SenderContains extends GenericMatcher
+{
+    public Collection match(Mail mail)
+    {
+        try
+        {
+           String sender = mail.getMessage().getFrom()[0].toString();
+           if (sender != null && sender.toUpperCase().indexOf(getCondition().toUpperCase())!= -1)
+           {
+              log( "SenderContains " + "[" + getCondition() + "] ++-- match on sender ["+sender+"]" );
+              return( mail.getRecipients() );
+           }
+           else
+           {
+              log( "SenderContains " + "[" + getCondition() + "] ++-- no match on sender ["+sender+"]" );
+           }
+        }
+        catch(Exception e)
+        {
+           log( "'SenderContains' Exception: " + e );
+        }
+        return( null ); // no match
+    }
+}

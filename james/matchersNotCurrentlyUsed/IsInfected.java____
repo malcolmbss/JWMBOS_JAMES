@@ -1,0 +1,611 @@
+/*
+ * Copyright (C) The Apache Software Foundation. All rights reserved.
+ *
+ * This software is published under the terms of the Apache Software License
+ * version 1.1, a copy of which has been included with this distribution in
+ * the LICENSE file.
+ */
+package org.apache.james.transport.matchers;
+
+import org.apache.mailet.base.GenericMatcher;
+import org.apache.mailet.MailAddress;
+import org.apache.mailet.Mail;
+
+import org.apache.mailet.base.RFC2822Headers;
+
+import java.util.*;
+import java.io.*;
+
+import javax.mail.*;
+import javax.mail.internet.*;
+
+/** <P>Scans a message for viruses.</P>
+ * <P>Creates a target directory for the current message, writes the message itself and
+ * all its attachments as ".tt" files, and invokes an antivirus command line scanner.</P>
+ * <P>If the exit code specifies that one or more parts are infected the match is successful.
+ * In such case appends to the error message (see {@link org.apache.mailet.Mail#setErrorMessage})
+ * the stdout of the scanner or optionally a report file created by the scanner.
+ * If the exit code is != 0 and does not specify that a virus is found an exception
+ * is thrown.
+ * If any exception is thrown the match fails, and the exception is reported to the log.</P>
+ * <P>Either a <CODE>"[WARNING: VIRUS FOUND]"</CODE> string or a <CODE>"[no virus]"</CODE>
+ * string is appended to the subject of the message (being a Matcher no modification
+ * should be done to the message: this is the only one).</P>
+ * <P>The "condition string" in the <CODE>config.xml</CODE> file must be as follows:
+ * <CODE>"IsInfected=<I>antivirusExecPrototype</I>, <I>tempDirName</I>,
+ * <I>scanAlways</I>, <I>exitCode1</I>, <I>exitCode2</I>, ..."</CODE>
+ * where <I>antivirusExecPrototype</I> is the Command line string prototype
+ * to use when executing the antivirus scanner (see {@link #antivirusExecPrototype});
+ * <I>tempDirName</I> is the path of the main working directory into which create
+ * "target directories" to scan (see {@link #tempDirName});
+ * <I>scanAlways</I> if set to true means that will scan even if the message
+ * has no attachments (see {@link #scanAlways});
+ * <I>exitCode1</I>, <I>exitCode2</I> etc. are the command line antivirus scanner exit codes
+ * meaning that as a virus was found (see {@link #exitCodes}).</P>
+ * <P>The <I>antivirusExecPrototype</I> parameter can contain special substitution strings.</P>
+ * <P>Here follows an example of a config.xml definition valid for Network Associates (McAfee)
+ * VirusScan under Windows NT:</P>
+ * <PRE><CODE>
+ * &lt;processor&gt;
+ * .
+ * .
+ * .
+ *    &lt;mailet match='IsInfected="C:\Program Files\Common Files\Network Associates\VirusScan Engine\4.0.xx\scan" /analyze /noboot /nomem /noexpire /unzip /report %reportFile% %targetDir%\*.tt, C:\temp\virus, true, 13' class="ToProcessor"&gt;
+ *       &lt;processor&gt; virus &lt;/processor&gt;
+ *    &lt;/mailet&gt;
+ * .
+ * .
+ * .
+ * &lt;/processor&gt;
+ * .
+ * .
+ * .
+ * &lt;!-- Processor CONFIGURATION SAMPLE: virus is a sample custom processor for handling --&gt;
+ * &lt;!-- messages containing viruses. --&gt;
+ * &lt;!-- You can either log these, bounce these, or just ignore them. --&gt;
+ * &lt;processor name="virus"&gt;
+ *    &lt;!-- To avoid a kind of "virus found NotifySender war" between postmasters --&gt;
+ *    &lt;mailet match="RecipientIs=postmaster@yourdomain.com" class="Null"/&gt;
+ *
+ *    &lt;!-- To notify the sender their message was marked as containing viruses, uncomment this matcher/mailet configuration --&gt;
+ *    &lt;mailet match="All" class="NotifySender"&gt;
+ *       &lt;notice&gt; Warning: We were unable to deliver the attached message because one or more attachments were found infected by viruses &lt;/notice&gt;
+ *    &lt;/mailet&gt;
+ *
+ *    &lt;!-- To log the message to a repository, this matcher/mailet configuration should be uncommented. --&gt;
+ *    &lt;!-- This is the default configuration. --&gt;
+ *    &lt;mailet match="All" class="ToRepository"&gt;
+ *       &lt;repositoryPath&gt;file://var/mail/infected/&lt;/repositoryPath&gt;
+ *
+ *       &lt;!-- Changing the repositoryPath, as in this commented out example, will --&gt;
+ *       &lt;!-- cause the mails to be stored in a database repository.  --&gt;
+ *       &lt;!-- Please note that only one repositoryPath element can be present for the mailet --&gt;
+ *       &lt;!-- configuration. --&gt;
+ *       &lt;!--
+ *       &lt;repositoryPath&gt; db://maildb/deadletter/infected &lt;/repositoryPath&gt;
+ *       --&gt;
+ *    &lt;/mailet&gt;
+ * &lt;/processor&gt;
+ * </CODE></PRE>
+ *
+ * @version 1.1.6/16, 2003-06-16
+ * @author <a href="mailto:bonadio@intersearch.com.br">Cesar Bonadio</a>
+ * @author <a href="mailto:vincenzo.gianferraripini@praxis.it">Vincenzo Gianferrari Pini</a>
+ * @since 1.0.0/1
+ */
+public class IsInfected extends GenericMatcher {
+
+    private final static String TARGET_DIR_SUBSTRING = "%targetDir%";
+
+    private final static String REPORT_FILE_SUBSTRING = "%reportFile%";
+
+    private final static String HEADER_NAME = "X-MessageIsInfected";
+
+    private final static String VIRUS_FOUND_WARNING = "[WARNING: VIRUS FOUND]";
+
+    private final static String VIRUS_CHECK_OK_INFO = "[no virus]";
+
+    private final static int MESSAGE_BUFFER_SIZE = 8192;
+
+    /** Path of the main working directory into which create "target directories" to scan.
+     * Set as second comma separated parameter in the config.xml matcher definition
+     * "condition" string.
+     */
+    protected String tempDirName;
+
+    /** OS dependent file separator string for file/directory names.
+     */
+    protected String fileSeparator;
+
+    /** Command line string prototype to use when executing the antivirus scanner.
+     * Set as first comma/tab separated parameter in the config.xml matcher definition
+     * "condition" string.
+     * May contain two substitution strings:
+     * (a) <CODE>%targetDir%</CODE> that will be substituted with the current target directory name
+     * (<I>targetDirName</I>), containing the files to scan, and
+     * (b) <CODE>%reportFile%</CODE> with the name of a report file (<I>reportFileName</I>)
+     * that will be appended to the error message (see {@link org.apache.mailet.Mail#setErrorMessage})
+     * (report file name built as <I>targetDirName</I> + <I>{@link #fileSeparator}</I> + <CODE>scanReport.txt</CODE>).
+     */
+    protected String antivirusExecPrototype;
+    /** If true will scan even if the message has no attachments.
+     * Set as third comma/tab separated parameter in the config.xml matcher definition
+     * "condition" string.
+     */
+    protected boolean scanAlways = false;
+    /** Command line antivirus scanner exit codes to consider as a "virus found" result.
+     * Set as fourth and over comma/tab separated parameter(s) in the config.xml matcher definition
+     * "condition" string.
+     */
+    protected HashSet exitCodes = new HashSet();
+
+    /** Matcher initialization code.
+     * Receives its parameters as
+     * "<CODE>IsInfected</CODE>=<I>{@link #antivirusExecPrototype}</I>, <I>{@link #tempDirName}</I>,
+     * <I>{@link #scanAlways}</I>, <I>{@link #exitCodes}</I>".
+     */
+    public void init() throws MessagingException {
+        try {
+            fileSeparator = System.getProperty("file.separator");
+            if (fileSeparator == null) {
+                throw new Exception("file.separator unknown");
+            }
+
+            StringTokenizer st = new StringTokenizer(getCondition(), ",\t", false);
+            for (int i = 0; st.hasMoreTokens(); i++) {
+                switch (i) {
+                    case 0:
+                        antivirusExecPrototype = st.nextToken().trim();
+                        break;
+                    case 1:
+                        tempDirName = st.nextToken().trim();
+                        break;
+                    case 2:
+                        scanAlways = Boolean.valueOf(st.nextToken().trim()).booleanValue();
+                        break;
+                    default:
+                        exitCodes.add(Integer.valueOf(st.nextToken().trim()));
+                }
+            }
+
+            if (antivirusExecPrototype == null) {
+                throw new Exception("Missing antivirus execution command line prototype");
+            }
+            if (tempDirName == null) {
+                throw new Exception("Missing temporary directory name");
+            }
+            if (exitCodes.isEmpty()) {
+                throw new Exception("Missing exit codes to check: at least one is needed");
+            }
+            if (scanAlways) {
+                log("Will scan all messages, even without attachments");
+            }
+            else {
+                log("Will scan only messages with attachments");
+            }
+
+        } catch ( Exception e ){
+            throw new MessagingException("Invalid parameters found initializing matcher \"IsInfected\"", e);
+        }
+
+    }
+
+
+    public Collection match(Mail mail) throws MessagingException {
+
+        // Messages coming from the postmaster should be ignored, in order to
+        // allow "NotifySender"
+        MailAddress senderAddress = mail.getSender();
+        MailAddress postmasterAddress = getMailetContext().getPostmaster();
+        if (senderAddress != null && postmasterAddress.equals(senderAddress)) {
+            return null;
+        }
+
+        MimeMessage message = (MimeMessage) mail.getMessage();
+
+        if (!scanAlways) {
+            // Ignoring messages without attachments
+            if (message.getContentType() == null ||
+            message.getContentType().startsWith("text/plain") ||
+            message.getContentType().startsWith("text/html") ||
+            message.getContentType().startsWith("multipart/alternative")) {
+                return null;
+            }
+        }
+
+        String [] headerArray = message.getHeader(HEADER_NAME);
+        // already scanned?
+        if (headerArray != null && headerArray.length > 0) {
+            // infected?
+            if (Boolean.valueOf(headerArray[0]).booleanValue()) {
+                return mail.getRecipients();
+            }
+            else {
+                return null;
+            }
+        }
+
+        // lets create a ramdom directory name and write the parts to it
+        String targetDirName = "";
+        try {
+
+            // now lets create the temp directory
+            while (true) {
+                targetDirName = tempDirName + fileSeparator + "virus" + randomFile();
+                File f = new File(targetDirName);
+                log("Target dir name: " + targetDirName);
+                if (!f.exists()){
+                    f.mkdir();
+                    break;
+                }
+            }
+            File targetDir = new File(targetDirName);
+
+            Object content= message.getContent();
+            if (content instanceof Multipart) {
+                Multipart multipart = (Multipart) content;
+                for(int i=0; i < multipart.getCount();i++) {
+                    Part part = multipart.getBodyPart(i);
+                    dumpPart(part, targetDir);
+                }
+            }
+            else if (content instanceof String) {
+                File f = File.createTempFile("content", ".tt", targetDir);
+                log("String: " + f.getAbsolutePath());
+                FileWriter fw = new FileWriter( f );
+                fw.write( (String)content );
+                fw.close();
+
+//              FileOutputStream fos = new FileOutputStream(f) ;
+//              BufferedOutputStream bos= new BufferedOutputStream(fos, MESSAGE_BUFFER_SIZE);
+//              ObjectOutputStream out = new ObjectOutputStream(bos);
+//              out.writeObject(content);
+//              out.flush();
+//
+//              bos.close();
+//              out.close();
+            }
+            else if (content instanceof java.io.InputStream) {
+                File f = File.createTempFile("content", ".tt", targetDir);
+                log("InputStream: " + f.getAbsolutePath());
+
+                InputStream in  = (InputStream) content ;
+                BufferedInputStream bin = new BufferedInputStream(in, MESSAGE_BUFFER_SIZE);
+
+                FileOutputStream fos = new FileOutputStream(f) ;
+                BufferedOutputStream bos= new BufferedOutputStream(fos, MESSAGE_BUFFER_SIZE);
+
+                int nRead = 0;
+                byte[] b = new byte[MESSAGE_BUFFER_SIZE];
+                while( (nRead = in.read(b)) != -1 ){
+                    if ( nRead < MESSAGE_BUFFER_SIZE ){
+                        bos.write(b,0,nRead);
+                    } else {
+                        bos.write(b);
+                    }
+                }
+
+                bos.close();
+                bin.close();
+            }
+
+        // now lets call the antivirus
+            String reportFileName = targetDirName + fileSeparator + "scanReport.txt";
+            StringBuffer antivirusExecSb = new StringBuffer(antivirusExecPrototype);
+            int i = -1;
+            boolean reportRequested = false;
+            while ((i = antivirusExecSb.indexOf(REPORT_FILE_SUBSTRING, i)) >= 0) {
+                reportRequested = true;
+                antivirusExecSb.replace(i, i + REPORT_FILE_SUBSTRING.length(), reportFileName);
+            }
+            i = -1;
+            while ((i = antivirusExecSb.indexOf(TARGET_DIR_SUBSTRING, i)) >= 0) {
+                antivirusExecSb.replace(i, i + TARGET_DIR_SUBSTRING.length(), targetDirName);
+            }
+
+            Runtime rt = Runtime.getRuntime();
+                        log("exec: " + antivirusExecSb.toString());
+            Process proc = rt.exec(antivirusExecSb.toString());
+            InputStream stdin = proc.getInputStream();
+            InputStreamReader isr = new InputStreamReader(stdin);
+            BufferedReader br = new BufferedReader(isr);
+            String line = null;
+            String errorMessage = mail.getErrorMessage();
+            if (errorMessage == null) {
+                errorMessage = "";
+            }
+            else {
+                errorMessage += "\r\n";
+            }
+            StringBuffer sb = new StringBuffer(errorMessage);
+            while ((line = br.readLine()) != null) {
+                if (!reportRequested) {
+                    sb.append(line + "\r\n");
+                }
+            }
+            int exitVal = proc.waitFor();
+
+            if (reportRequested) {
+                readFile(reportFileName, sb);
+            }
+
+            if (exitVal != 0) {
+
+                // check if virus  is found
+                if (exitCodes.contains(new Integer(exitVal))) {
+
+                    // sets the error message to be shown in any "notifyXxx" message
+                    mail.setErrorMessage(sb.toString());
+
+                    // writes the report to the log
+                    logVirusFound(mail, sb, exitVal);
+
+
+// 3-5-05 -- JWM -- was getting exceptions in saveChanges();  Don't think i care if the msg gets updated or not, so don't save for now
+
+
+//                  message.setHeader(HEADER_NAME, "true");
+//
+//                  appendToSubject(message, VIRUS_FOUND_WARNING);
+//
+//                  saveChanges(message);
+
+                    return mail.getRecipients();
+                }
+                else {
+                    throw new Exception("Bad exit code returned from antivirus: "
+                    + exitVal + "."
+                    + "Command line was: " + antivirusExecSb.toString());
+                }
+            }
+            else {
+//              message.setHeader(HEADER_NAME, "false");
+
+//                appendToSubject(message, VIRUS_CHECK_OK_INFO);
+
+//              saveChanges(message);
+
+                return null;
+            }
+        } catch (Exception  t) {
+            log("Exception caught", t);
+            throw new MessagingException("Exception thrown", t);
+        }
+        finally {
+            deleteFile(targetDirName);
+        }
+    }
+
+    public String getMatcherInfo() {
+        return "Antivirus matcher";
+    }
+
+    /*
+     * Removes the temporary file
+     */
+    private void deleteFile( String name ){
+        try {
+            File f = new File( name );
+            File[] rm = f.listFiles() ;
+            for(int  x=0; x < rm.length; x++){
+                rm[x].delete();
+            }
+            // remove the directory;
+            f.delete();
+        } catch (Exception e){
+            log("Exception caught in deleteFile", e);
+        }
+    }
+
+    /*
+     * Returns a random string to be used as a file name
+     */
+    private String randomFile(){
+        Random r = new Random();
+        return String.valueOf(r.nextLong());
+    }
+
+    private void dumpPart(Part p, File targetDir) throws Exception {
+        MimePart j = (MimePart) p;
+        String fileName = null;
+
+        try {
+            fileName = j.getFileName();
+        }
+        catch (MessagingException ex) {
+            fileName = null;
+        }
+
+        if (fileName == null) {
+            fileName = "";
+        }
+        else {
+            fileName += ".";
+        }
+
+        try {
+            Object o = p.getContent();
+            if (o instanceof String) {
+                File f  = createTempFile(fileName, targetDir);
+                log("Part: " + f.getAbsolutePath());
+                FileWriter fw = new FileWriter( f );
+                fw.write( (String)o );
+                fw.close();
+
+//              FileOutputStream fos = new FileOutputStream(f) ;
+//              BufferedOutputStream bos= new BufferedOutputStream(fos, MESSAGE_BUFFER_SIZE);
+//              ObjectOutputStream out = new ObjectOutputStream(bos);
+//              out.writeObject(o);
+//              out.flush();
+//
+//              bos.close();
+//              out.close();
+
+            }
+            else if (o instanceof Multipart) {
+                Multipart mp = (Multipart) o;
+                int count = mp.getCount();
+                for (int i = 0; i < count; i++) {
+                    dumpPart((Part)mp.getBodyPart(i), targetDir);
+                }
+            }
+            else if (o instanceof Message) {
+                Message m = (Message) o ;
+                Object content= m.getContent() ;
+                if ( content instanceof Multipart ){
+                    Multipart multipart = (Multipart) content;
+                    for(int i=0; i< multipart.getCount();i++) {
+                        Part part = multipart.getBodyPart(i);
+                        dumpPart(part, targetDir);
+                    }
+                }
+                else if (content instanceof String) {
+                    File f  = createTempFile(fileName, targetDir);
+                    log("Part String: " + f.getAbsolutePath());
+                    FileWriter fw = new FileWriter( f );
+                    fw.write( (String)content );
+                    fw.close();
+
+//                  FileOutputStream fos = new FileOutputStream(f) ;
+//                  BufferedOutputStream bos= new BufferedOutputStream(fos, MESSAGE_BUFFER_SIZE);
+//                  ObjectOutputStream out = new ObjectOutputStream(bos);
+//                  out.writeObject(content);
+//                  out.flush();
+//                  bos.close();
+//                  out.close();
+                }
+            }
+            else if (o instanceof InputStream) {
+                File f = createTempFile(fileName, targetDir);
+                log("Part InputStream: " + f.getAbsolutePath());
+
+                InputStream in  = (InputStream) o ;
+                BufferedInputStream bin = new BufferedInputStream(in, MESSAGE_BUFFER_SIZE);
+
+                FileOutputStream fos = new FileOutputStream(f) ;
+                BufferedOutputStream bos= new BufferedOutputStream(fos, MESSAGE_BUFFER_SIZE);
+
+                int nRead = 0;
+                byte[] b = new byte[MESSAGE_BUFFER_SIZE];
+                while( (nRead = in.read(b)) != -1 ){
+                    if ( nRead < MESSAGE_BUFFER_SIZE ){
+                        bos.write(b,0,nRead);
+                    } else {
+                        bos.write(b);
+                    }
+                }
+
+                bos.close();
+                bin.close();
+            }
+        }
+        // if java.io.UnsupportedEncodingException caught just do nothing
+        catch (java.io.UnsupportedEncodingException uee) {}
+
+    }
+
+    private File createTempFile(String fileName, File targetDir) throws IOException {
+        File f = null;
+        try {
+            f = File.createTempFile(fileName + "part", ".tt", targetDir);
+        }
+        catch (IOException ioe) {
+            f = File.createTempFile("part", ".tt", targetDir);
+        }
+        return f;
+    }
+
+    private void readFile(String fileName, StringBuffer sb) throws IOException {
+        BufferedReader br  = new BufferedReader(new FileReader(fileName));
+
+        String line;
+        while ((line = br.readLine()) != null) {
+            sb.append(line + "\r\n");
+        }
+        br.close();
+    }
+
+    private void appendToSubject(MimeMessage message, String toAppend) {
+        try {
+            String subject = message.getSubject();
+
+            if (subject == null) {
+                message.setSubject(toAppend, "iso-8859-1");
+            }
+            else {
+                message.setSubject(toAppend + " " + subject, "iso-8859-1");
+            }
+        }
+        catch (MessagingException ex) {}
+    }
+
+    private void logVirusFound(Mail mail, StringBuffer errorMessageSb, int exitVal) {
+
+        log("Virus Found! Antivirus scanner exit value is: " + exitVal);
+
+        // writes the error message to the log
+        log(errorMessageSb.toString());
+
+        StringWriter sout = new StringWriter();
+        PrintWriter out = new PrintWriter(sout, true);
+
+        out.println("Message details:");
+
+        try {
+            MimeMessage message = (MimeMessage) mail.getMessage();
+
+            //            if (message.getSubject() != null) {
+            //                out.println("  Subject: " + message.getSubject());
+            //            }
+            if (message.getSentDate() != null) {
+                out.println("  Sent date: " + message.getSentDate());
+            }
+            String[] sender = null;
+            sender = message.getHeader(RFC2822Headers.FROM);
+            if (sender != null) {
+                out.print("  From: ");
+                for (int i = 0; i < sender.length; i++) {
+                    out.print(sender[i] + " ");
+                }
+                out.println();
+            }
+            String[] rcpts = null;
+            rcpts = message.getHeader(RFC2822Headers.TO);
+            if (rcpts != null) {
+                out.print("  To: ");
+                for (int i = 0; i < rcpts.length; i++) {
+                    out.print(rcpts[i] + " ");
+                }
+                out.println();
+            }
+            rcpts = message.getHeader(RFC2822Headers.CC);
+            if (rcpts != null) {
+                out.print("  CC: ");
+                for (int i = 0; i < rcpts.length; i++) {
+                    out.print(rcpts[i] + " ");
+                }
+                out.println();
+            }
+            out.println("  Size (in bytes): " + message.getSize());
+            if (message.getLineCount() >= 0) {
+                out.println("  Number of lines: " + message.getLineCount());
+            }
+        } catch (MessagingException  me) {
+            log("Exception caught reporting message details", me);
+        }
+
+        log(sout.toString());
+    }
+
+    /**
+     * Saves changes resetting the original message id.
+     */
+    private void saveChanges(MimeMessage message) throws MessagingException {
+        String messageId = message.getMessageID();
+        message.saveChanges();
+        if (messageId != null) {
+            message.setHeader(RFC2822Headers.MESSAGE_ID, messageId);
+        }
+    }
+
+}

@@ -1,0 +1,21 @@
+package org.apache.james.transport.matchers;
+
+import org.apache.mailet.base.GenericRecipientMatcher;
+import org.apache.mailet.MailAddress;
+
+
+public class IsJWMMailList extends GenericRecipientMatcher {
+
+    public boolean matchRecipient(MailAddress recipient) {
+        try
+        {
+           return (( recipient.toString().startsWith( "maillist-") )
+                  ||( recipient.toString().startsWith( "testmaillist-") ));
+        }
+        catch( Exception e)
+        {
+           return( false );
+        }
+
+    }
+}

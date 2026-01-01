@@ -1,0 +1,15 @@
+package org.apache.james.transport.matchers;
+
+import org.apache.mailet.base.GenericMatcher;
+import org.apache.mailet.Mail;
+
+import java.util.Collection;
+
+public class HasHeader extends GenericMatcher
+{
+    public Collection match(Mail mail) throws javax.mail.MessagingException
+    {
+        log( "HasHeader " + "[" + getCondition() + "] " + (mail.getMessage().getHeader(getCondition(), null) != null));
+        return (mail.getMessage().getHeader(getCondition(), null) != null) ? mail.getRecipients() : null;
+    }
+}

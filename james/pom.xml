@@ -1,0 +1,79 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.example.james</groupId>
+  <artifactId>custom-mailets</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <java.version>21</java.version>
+    <james.version>3.9.0</james.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Import the James Project BOM -->
+      <dependency>
+        <groupId>org.apache.james</groupId>
+        <artifactId>james-project</artifactId>
+        <version>${james.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+<dependencies>
+
+  <!-- Mailet API -->
+  <dependency>
+    <groupId>org.apache.james</groupId>
+    <artifactId>apache-mailet-api</artifactId>
+    <scope>provided</scope>
+  </dependency>
+
+  <!-- Mailet base helpers (optional) -->
+  <dependency>
+    <groupId>org.apache.james</groupId>
+    <artifactId>apache-mailet-base</artifactId>
+    <scope>provided</scope>
+  </dependency>
+
+  <!-- JavaMail / Jakarta Mail API -->
+  <dependency>
+    <groupId>com.sun.mail</groupId>
+    <artifactId>jakarta.mail</artifactId>
+    <version>1.6.7</version>
+    <scope>provided</scope>
+  </dependency>
+
+  <!-- Logging API -->
+  <dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+    <scope>provided</scope>
+  </dependency>
+
+</dependencies>
+
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <source>${java.version}</source>
+          <target>${java.version}</target>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

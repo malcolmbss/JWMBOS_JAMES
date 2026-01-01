@@ -1,0 +1,68 @@
+/****************************************************************
+ * Licensed to the Apache Software Foundation (ASF) under one   *
+ * or more contributor license agreements.  See the NOTICE file *
+ * distributed with this work for additional information        *
+ * regarding copyright ownership.  The ASF licenses this file   *
+ * to you under the Apache License, Version 2.0 (the            *
+ * "License"); you may not use this file except in compliance   *
+ * with the License.  You may obtain a copy of the License at   *
+ *                                                              *
+ *   http://www.apache.org/licenses/LICENSE-2.0                 *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY       *
+ * KIND, either express or implied.  See the License for the    *
+ * specific language governing permissions and limitations      *
+ * under the License.                                           *
+ ****************************************************************/
+
+
+
+package org.apache.james.transport.matchers;
+
+import org.apache.james.core.MailAddress;
+import org.apache.mailet.MailetContext;
+import org.apache.mailet.base.GenericRecipientMatcher;
+
+/**
+ * Matches mail where the recipient is local.
+ * @version 1.0.0, 24/04/1999
+ */
+public class JWMRecipientIsLocal extends GenericRecipientMatcher {
+
+    @Override
+    public boolean matchRecipient(MailAddress recipient) {
+        MailetContext mailetContext = getMailetContext();
+        //This might change after startup
+        return mailetContext.isLocalEmail(getRecipientMailAcct(recipient));
+    }
+
+    public MailAddress getRecipientMailAcct( MailAddress emailAddress ) throws MessagingException
+    {
+        MailAddress mailAddress = emailAddress;
+
+        if (emailAddress == null ) {
+           logger.error("emailAddress is null");
+           return( mailAddress );
+        }
+
+        try {
+            Mappings mappings = rrt.getResolvedMappings(emailAddress.getLocalPart(), emailAddress.getDomain());
+            if (mappings != null ) {
+                Iterator<Mapping> i = mappings.iterator();
+                while (i.hasNext()) {
+                    return new MailAddress(i.next());
+                }
+            }
+        } catch (ErrorMappingException e) {
+            String errorBuffer = getMailetInfo() + " - A problem has occurred trying to map email address to repository " + emailAddress + ": " + e.getMessage();
+            throw new MessagingException(errorBuffer);
+        } catch (RecipientRewriteTableException e) {
+            throw new MessagingException("Unable to access RecipientRewriteTable", e);
+        } catch (UsersRepositoryException e) {
+            throw new MessagingException(e.getMessage());
+        }
+        return(mailAddress);
+    }
+}

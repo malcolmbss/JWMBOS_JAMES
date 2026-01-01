@@ -1,0 +1,28 @@
+package org.apache.james.transport.matchers;
+
+import org.apache.mailet.base.GenericMatcher;
+import org.apache.mailet.Mail;
+import javax.mail.*;
+import javax.mail.internet.*;
+
+import java.util.Collection;
+
+/**
+ * use: <mailet match="SubjectContains=<subject>" class="..." />
+ *
+**/
+public class SubjectContains extends GenericMatcher {
+
+    public Collection match(Mail mail) throws MessagingException
+    {
+        MimeMessage mm = mail.getMessage();
+        String subject = mm.getSubject();
+        if (subject != null && subject.toUpperCase().indexOf(getCondition().toUpperCase())!= -1)
+        {
+            log( "SubjectContains " + "[" + getCondition() + "] ++-- match on subject ["+subject+"]" );
+            return mail.getRecipients();
+        }
+        log( "SubjectContains " + "[" + getCondition() + "] -- no match on subject ["+subject+"]" );
+        return null;
+    }
+}

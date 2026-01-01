@@ -1,0 +1,34 @@
+package org.apache.james.transport.matchers;
+
+import org.apache.mailet.base.GenericMatcher;
+import org.apache.mailet.MailAddress;
+import org.apache.mailet.*;
+import java.util.Collection;
+import java.util.Vector;
+
+public class SenderIsLocal  extends GenericMatcher {
+    public Collection match(Mail mail)
+    {
+        try
+        {
+           MailAddress sender = mail.getSender();
+           MailetContext mailetContext = getMailetContext();
+           log( "SenderIsLocal: "+ sender + " -- " + mailetContext );
+
+           if (mailetContext.isLocalServer(sender.getHost() ))
+           {
+              log( "SenderIsLocal: Sender: " + sender + " is local" );
+              return( mail.getRecipients() );
+           }
+           else
+           {
+              log( "SenderIsLocal: Sender: " + sender + " is remote" );
+           }
+        }
+        catch(Exception e)
+        {
+           log( "'SenderIsLocal' Exception: " + e );
+        }
+        return( null ); // no match
+    }
+}
