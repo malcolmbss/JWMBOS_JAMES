@@ -1,0 +1,65 @@
+    <!-- gmail and others have higher trust for mail coming through gateway, but AWS SES must pre-approve the domains that can utilize the gateway -->
+    <!-- also currently ALL apache.org forums REJECT SES (gateway) emails because SES changes the Return-Path header which apache uses to identify subscriber -->
+
+    <processor state="RemoteDeliveryNoGateway" enableJmx="true">
+
+       <mailet match="All" class="ExtLogger">
+          <event>EXT_LOG_REMOTEDELIVERY_NO_GATEWAY</event>
+       </mailet>
+
+       <mailet match="All" class="JWMRemoteDelivery">
+          <outgoing>outgoingNoGateway</outgoing>
+
+          <!-- recommended in a blog to fix dkim problems -->
+          <mail.smtp.allow8bitmime>false</mail.smtp.allow8bitmime>
+
+          <!-- Delivery Schedule based upon RFC 2821, 4.5.4.1 -->
+          <!-- 5 day retry period, with 4 attempts in the first
+                 hour, two more within the first 6 hours, and then
+                 every 6 hours for the rest of the period.
+          <delayTime>4 * 15 minutes, 2 * 3 hours, 18 * 6 hours</delayTime>
+          -->
+          <delayTime>5000, 100000, 500000</delayTime>
+          <maxRetries>25</maxRetries>
+
+          <!-- The max reties which will used if no A or MX record for the domain was found. -->
+          <!-- If 0 it will fail on first time -->
+          <maxDnsProblemRetries>0</maxDnsProblemRetries>
+
+          <!-- The number of threads that should be trying to deliver outgoing messages -->
+          <deliveryThreads>10</deliveryThreads>
+
+          <!-- If false the message will not be sent to given server if any recipients fail -->
+          <sendpartial>true</sendpartial>
+
+          <!-- By default we send bounces to the "bounce" processor -->
+          <!-- By removing this configuration James will fallback to hardcoded bounce -->
+          <!-- notifications -->
+          <bounceProcessor>bounces</bounceProcessor>
+
+          <!-- A single mail server to deliver all outgoing messages. -->
+          <!-- This is useful if this server is a backup or failover machine, -->
+          <!-- or if you want all messages to be routed through a particular mail server, -->
+          <!-- regardless of the email addresses specified in the message -->
+          <!-- -->
+          <!-- The gateway element specifies the gateway SMTP server name. -->
+          <!-- If your gateway mail server is listening on a port other than 25, -->
+          <!-- you can set James to connect to it on that port using the gatewayPort -->
+          <!-- element. -->
+          <!-- Although normally multiple addresses are implemented through proper -->
+          <!-- DNS configuration, the RemoteDelivery mail does allow specifying -->
+          <!-- multiple gateway elements, each of which may also have a port -->
+          <!-- e.g., mygateway:2525 -->
+          <!-- the gatewayPort element is used as a default -->
+
+
+          <!-- Set the HELO/EHLO name to use when connectiong to remote SMTP-Server -->
+          <!-- JWM note - this must be here... and it must be elastic IP.  Otherwise it picks up AWS internal ip and recipients score it as spam -->
+
+          <mail.smtp.localhost>mail.jwmhosting.com</mail.smtp.localhost>  <!-- elastic ip domain name -->
+
+          <!-- if ip addresses are specified here, must use the AWS PRIVATE internal ip address; not the external elastic IP address -->
+          <mail.smtp.localaddress>172.31.1.102</mail.smtp.localaddress>   <!-- AWS EC2 PRIVATE ip address -->
+       </mailet>
+
+    </processor>

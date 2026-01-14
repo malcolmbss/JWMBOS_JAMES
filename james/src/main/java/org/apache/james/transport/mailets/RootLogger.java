@@ -1,23 +1,14 @@
 package org.apache.james.transport.mailets;
 
-import org.slf4j.Logger;
+import java.util.Collection;
+
+import org.apache.james.core.MailAddress;
+import org.apache.mailet.Mail;
 import org.slf4j.LoggerFactory;
 
-import org.apache.mailet.base.GenericMailet;
-import org.apache.mailet.Mail;
-import org.apache.james.core.MailAddress;
-import java.io.*;
-import java.util.*;
-import javax.mail.*;
-import javax.mail.MessagingException;
-import javax.mail.internet.InternetAddress;
-import jwm.db.*;
-import jwm.entity.*;
-import jwm.logger.*;
-import jwm.servletdb.*;
-import jwm.servletlogger.*;
-import javax.sql.DataSource;
-import javax.mail.Address;
+import jakarta.mail.Address;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetAddress;
 
 public class RootLogger extends JWMGenericMailet
 {

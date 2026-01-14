@@ -1,0 +1,5 @@
+    <processor state="local-address-error" enableJmx="true">
+       <mailet match="All" class="ToRepository">
+          <repositoryPath>db://maildb/deadletter/address-error</repositoryPath>
+       </mailet>
+    </processor>

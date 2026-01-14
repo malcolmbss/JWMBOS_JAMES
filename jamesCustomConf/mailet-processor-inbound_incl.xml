@@ -1,0 +1,85 @@
+    <processor state="inbound" enableJmx="true">
+
+       <!--  if mail was sent from another JWMHosting JAMES instance, it will have JWMH headers from outbound processing... they are not valid now since this is a new email upon inbound -->
+
+       <mailet match="All" class="JWMRemoveMimeHeader">
+          <name>X_JWMH_OUTBOUND,X_JWMH_TGTACCT,X_JWMH_TGTFOLDER,X_JWMH_FLAG</name>
+       </mailet>
+
+       <!-- required by JWM Rules Engine -->
+       <mailet match="All" class="JWMHSetMimeHeader">
+          <name>X_JWMH_INBOUND</name>
+          <value>true</value>
+       </mailet>
+
+       <!-- "set bcc header" rules -->
+       <mailet match="All" class="JWMProcessRules">
+          <ruleType>102</ruleType>
+       </mailet>
+
+       <!-- "set ccForwarder header" rules -->
+       <mailet match="All" class="JWMProcessRules">
+          <ruleType>104</ruleType>
+       </mailet>
+
+       <!-- these headers are set by rules above -->
+
+       <mailet match="All" class="JWMHSetMimeHeader">
+          <name>X-Processor-Inbound</name>
+          <value>true</value>
+       </mailet>
+
+       <mailet match="HasHeader=X_JWMH_LOGGING_DATASOURCE" class="ExtLogger">
+          <event>EXT_LOG_INBOUND</event>
+       </mailet>
+
+       <mailet match="RelayLimit=30" class="Null"/>
+
+       <mailet match="InSpammerBlacklist=dnsbl.njabl.org." class="ToProcessor">
+         <processor>spam</processor>
+         <notice>550 Requested action not taken: rejected - see http://njabl.org/</notice>
+       </mailet>
+
+       <mailet match="SenderInFakeDomain=64.55.105.9,64.94.110.11,194.205.62.122,194.205.62.62,195.7.77.20,206.253.214.102,212.181.91.6,219.88.106.80,194.205.62.42,216.35.187.246,203.119.4.6" class="ToProcessor">
+          <processor>spam</processor>
+         <notice>Sender in fake domain</notice>
+       </mailet>
+
+       <!-- add headers based on whitelist, blacklist, senders/subjects -->
+
+       <mailet match="All" class="RecognizedListManager">
+          <repositoryPath>db://maildb</repositoryPath>
+          <action>checkRecognized</action>
+       </mailet>
+
+       <!-- add headers based on SpamAssassin -->
+       <mailet match="All" class="JWMHSpamAssassin">
+
+          <!-- spamdHost localHost spamdHost -->
+          <!-- NO [dash][dash] in XML Comments! James crashes with no clue to help debug it -->
+
+          <spamdHost>localhost</spamdHost>
+          <spamdPort>783</spamdPort>
+          <spamdCommand>REPORT</spamdCommand>
+       </mailet>
+
+       <!-- from Recognized List Manager -->
+       <mailet match="HasHeader=X-WhiteListSenderMatch" class="ToProcessor">
+          <processor>transport</processor>
+       </mailet>
+
+       <!-- from Recognized List Manager -->
+       <mailet match="HasHeader=X-RecognizedListSpamFlag" class="ToProcessor">
+          <processor>spam</processor>
+       </mailet>
+
+       <!-- from SpamAssassin -->
+       <mailet match="HasHeader=X-Spam-Flag-True" class="ToProcessor">
+          <processor>spam</processor>
+       </mailet>
+
+       <mailet match="All" class="ToProcessor">
+          <processor>transport</processor>
+       </mailet>
+
+    </processor>

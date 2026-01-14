@@ -19,8 +19,8 @@
 
 package org.apache.james.transport.mailets;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.MimeMessage;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.apache.mailet.base.GenericMailet;
 import java.net.Socket;
 import java.math.BigDecimal;

@@ -1,6 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
   <modelVersion>4.0.0</modelVersion>
@@ -28,38 +26,53 @@
     </dependencies>
   </dependencyManagement>
 
-<dependencies>
+  <dependencies>
 
-  <!-- Mailet API -->
-  <dependency>
-    <groupId>org.apache.james</groupId>
-    <artifactId>apache-mailet-api</artifactId>
-    <scope>provided</scope>
-  </dependency>
+    <!-- Mailet API -->
+    <dependency>
+      <groupId>org.apache.james</groupId>
+      <artifactId>apache-mailet-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
 
-  <!-- Mailet base helpers (optional) -->
-  <dependency>
-    <groupId>org.apache.james</groupId>
-    <artifactId>apache-mailet-base</artifactId>
-    <scope>provided</scope>
-  </dependency>
+    <!-- Mailet base helpers (optional) -->
+    <dependency>
+      <groupId>org.apache.james</groupId>
+      <artifactId>apache-mailet-base</artifactId>
+      <scope>provided</scope>
+    </dependency>
 
-  <!-- JavaMail / Jakarta Mail API -->
-  <dependency>
+    <!-- JavaMail / Jakarta Mail API -->
+    <!-- <dependency>
     <groupId>com.sun.mail</groupId>
     <artifactId>jakarta.mail</artifactId>
     <version>1.6.7</version>
     <scope>provided</scope>
-  </dependency>
+  </dependency> -->
 
-  <!-- Logging API -->
-  <dependency>
-    <groupId>org.slf4j</groupId>
-    <artifactId>slf4j-api</artifactId>
-    <scope>provided</scope>
-  </dependency>
+    <dependency>
+      <groupId>org.apache.james</groupId>
+      <artifactId>james-core</artifactId>
+      <version>3.9.0</version>
+      <scope>provided</scope>
+    </dependency>
 
-</dependencies>
+    <!-- Logging API -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.apache.james</groupId>
+      <artifactId>james-server-mailets</artifactId>
+      <version>3.9.0</version>
+      <!-- Use 'provided' scope since these classes are already present at runtime in the James server -->
+      <scope>provided</scope>
+    </dependency>
+
+  </dependencies>
 
 
   <build>

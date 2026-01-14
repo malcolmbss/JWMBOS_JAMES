@@ -1,29 +1,10 @@
-/****************************************************************
- * Licensed to the Apache Software Foundation (ASF) under one   *
- * or more contributor license agreements.  See the NOTICE file *
- * distributed with this work for additional information        *
- * regarding copyright ownership.  The ASF licenses this file   *
- * to you under the Apache License, Version 2.0 (the            *
- * "License"); you may not use this file except in compliance   *
- * with the License.  You may obtain a copy of the License at   *
- *                                                              *
- *   http://www.apache.org/licenses/LICENSE-2.0                 *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY       *
- * KIND, either express or implied.  See the License for the    *
- * specific language governing permissions and limitations      *
- * under the License.                                           *
- ****************************************************************/
-
 package org.apache.james.transport.mailets;
 
 import org.apache.mailet.base.GenericMailet;
 import org.apache.mailet.Mail;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.MimeMessage;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +43,7 @@ public class JamesSpamAssassin extends GenericMailet {
     /**
      * @see org.apache.mailet.base.GenericMailet#init()
      */
-    public void init() throws MessagingException {
+    @Override public void init(){
         spamdHost = getInitParameter("spamdHost");
         if (spamdHost == null || spamdHost.equals("")) {
             spamdHost = "127.0.0.1";
@@ -76,7 +57,7 @@ public class JamesSpamAssassin extends GenericMailet {
             try {
                 spamdPort = Integer.parseInt(getInitParameter("spamdPort"));
             } catch (NumberFormatException e) {
-                throw new MessagingException("Please configure a valid port. Not valid: " + spamdPort);
+                logger.error("Please configure a valid port. Not valid: " + spamdPort);
             }
         }
     }
@@ -84,7 +65,7 @@ public class JamesSpamAssassin extends GenericMailet {
     /**
      * @see org.apache.mailet.base.GenericMailet#service(Mail)
      */
-    public void service(Mail mail) {
+    @Override public void service(Mail mail) {
         try {
             MimeMessage message = mail.getMessage();
 
@@ -96,9 +77,9 @@ public class JamesSpamAssassin extends GenericMailet {
             // Add headers as attribute to mail object
             for (String key : sa.getHeadersAsAttribute().keySet())
             {
-                mail.setAttribute(key, sa.getHeadersAsAttribute().get(key));
-                message.setHeader(key, sa.getHeadersAsAttribute().get(key));
-                logger.debug("(spamd) - JWMHSpamAssassin Add Header: " + key + " = " + sa.getHeadersAsAttribute().get(key));
+                String headerValue = sa.getHeadersAsAttribute().get(key);
+                message.setHeader(key, headerValue);
+                logger.debug("(spamd) - JWMHSpamAssassin Add Header: " + key + " = " + headerValue);
             }
 
             message.saveChanges();
@@ -111,7 +92,7 @@ public class JamesSpamAssassin extends GenericMailet {
     /**
      * @see org.apache.mailet.base.GenericMailet#getMailetInfo()
      */
-    public String getMailetInfo() {
+    @Override public String getMailetInfo() {
         return "Checks message against SpamAssassin";
     }
 }

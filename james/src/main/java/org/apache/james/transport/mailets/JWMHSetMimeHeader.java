@@ -1,13 +1,9 @@
 package org.apache.james.transport.mailets;
-import org.slf4j.Logger;
+import org.apache.mailet.Mail;
 import org.slf4j.LoggerFactory;
-import javax.mail.MessagingException;
-import javax.mail.internet.MimeMessage ;
-import org.apache.mailet.base.GenericMailet ;
-import org.apache.mailet.Mail ;
-import org.apache.james.mailrepository.api.*;
-import javax.annotation.Resource;
-import java.util.Enumeration;
+
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage ;
 /**
  * <p>Adds a specified header and value to the message.</p>
  *
@@ -27,7 +23,7 @@ public class JWMHSetMimeHeader extends JWMGenericMailet
     private String headerName;
     private String headerValue;
 
-    public void init() throws MessagingException
+    @Override public void init() throws MessagingException
     {
         logger = LoggerFactory.getLogger(JWMHSetMimeHeader.class);
         headerName = getInitParameter("name");
@@ -40,7 +36,7 @@ public class JWMHSetMimeHeader extends JWMGenericMailet
         }
     }
 
-    public void service(Mail mail) throws MessagingException
+    @Override public void service(Mail mail) throws MessagingException
     {
         try
         {
@@ -49,13 +45,13 @@ public class JWMHSetMimeHeader extends JWMGenericMailet
             logger.debug( headerName + "=" + headerValue );
             message.saveChanges();
         }
-        catch (javax.mail.MessagingException me)
+        catch (jakarta.mail.MessagingException me)
         {
             log ("JWMHSetMimeHeader exception-error -- " + me.getMessage());
         }
     }
 
-    public String getMailetInfo()
+   @Override  public String getMailetInfo()
     {
         return "SetMimeHeader Mailet" ;
     }

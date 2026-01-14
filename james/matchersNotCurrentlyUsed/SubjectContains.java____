@@ -2,8 +2,8 @@ package org.apache.james.transport.matchers;
 
 import org.apache.mailet.base.GenericMatcher;
 import org.apache.mailet.Mail;
-import javax.mail.*;
-import javax.mail.internet.*;
+import jakarta.mail.*;
+import jakarta.mail.internet.*;
 
 import java.util.Collection;
 

@@ -1,3 +1,11 @@
 S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\matchers\HeaderContains.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\ExtLogger.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMHSetMimeHeader.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMSpamAssassinInvoker.java
 S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\RecognizedListManager.java
-S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\rrt\WGBERecipientRewriteTable.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JamesSpamAssassin.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMRemoveMimeHeader.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMRemoteDelivery.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\RootLogger.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMGenericMailet.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMHSpamAssassin.java

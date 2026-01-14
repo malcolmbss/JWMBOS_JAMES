@@ -1,22 +1,27 @@
 package org.apache.james.transport.matchers;
-import org.apache.mailet.GenericMatcher;  // base class to extend
-import org.apache.mailet.Mail;            // mail object
-import org.apache.mailet.MailAddress;     // sender/recipient addresses
+import java.util.Collection;
 
-import javax.mail.MessagingException;     // for any JavaMail exceptions
-import java.util.Collection;              // return type for matched recipients
+import org.apache.mailet.Mail;
+import org.apache.james.core.MailAddress;
+import org.apache.mailet.MatcherConfig;
+import org.apache.mailet.base.GenericMatcher;
+import org.slf4j.Logger;
 
-/**
- * use: <mailet match="HeaderContains=<header>-[value]" class="..." />
- *
-**/
 public class HeaderContains extends GenericMatcher {
+   
+   private Logger logger;
 
-    public Collection match(Mail mail) throws javax.mail.MessagingException {
+    @Override
+    public void init(MatcherConfig config) {
+        // You can read matcher parameters here if desired
+    }
 
+    @Override
+    public Collection<MailAddress> match(Mail mail) 
+    {
         String[] condition = getCondition().split("-");
-        String header = "";
-        String value = "";
+        String header;
+        String value;
 
         if ( condition.length >2 )
         {
@@ -29,22 +34,27 @@ public class HeaderContains extends GenericMatcher {
            value  = condition[1];
         }
 
-        log( "HeaderContains " + "[" + header + "] = " + value +"?");
-        if (mail.getMessage().getHeader(header)[0] == null )
-        {
-           log( "Header does not exist" );
-           return(null);
+        try {
+            logger.debug("HeaderContains [{}] = {}?", header, value);
+            if (mail.getMessage().getHeader(header)[0] == null )
+            {
+               logger.debug("Header does not exist");
+               return(null);
+            }
+            else
+            {
+               if ( mail.getMessage().getHeader(header)[0].contains( value ) )
+               {
+                  logger.debug("[{}] true", value);
+                   return( mail.getRecipients() );
+               }
+            }
+            logger.debug("[{}] false", value);
+            return (null);
+        } catch (Exception e) {
+            logger.error("Error accessing message headers", e);
+            return (null);
         }
-        else
-        {
-           if ( mail.getMessage().getHeader(header)[0].indexOf( value ) > -1 )
-           {
-              log( "[" + value + "] true" );
-               return( mail.getRecipients() );
-           }
-        }
-        log( "[" + value + "] false" );
-        return (null);
     }
 }
 

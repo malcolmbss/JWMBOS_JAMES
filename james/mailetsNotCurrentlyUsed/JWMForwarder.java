@@ -6,8 +6,8 @@ import java.util.*;
 import org.apache.mailet.Mail;
 import org.apache.james.core.MailAddress;
 import org.apache.james.dnsservice.api.DNSService;
-import javax.mail.MessagingException;
-import javax.mail.internet.*;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.*;
 import javax.inject.Inject;
 
 public class JWMForwarder extends Resend

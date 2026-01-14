@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE mailetcontainer [
+<!ENTITY root                SYSTEM "../conf/mailet-processor-root_incl.xml">
+<!ENTITY auth-outbound       SYSTEM "../conf/mailet-processor-authOutbound_incl.xml">
+<!ENTITY inbound             SYSTEM "../conf/mailet-processor-inbound_incl.xml">
+<!ENTITY error               SYSTEM "../conf/mailet-processor-error_incl.xml">
+<!ENTITY transport           SYSTEM "../conf/mailet-processor-transport_incl.xml">
+<!ENTITY spam                SYSTEM "../conf/mailet-processor-spam_incl.xml">
+<!ENTITY virus               SYSTEM "../conf/mailet-processor-virus_incl.xml">
+<!ENTITY local-address-error SYSTEM "../conf/mailet-processor-local-address-error_incl.xml">
+<!ENTITY relay-denied        SYSTEM "../conf/mailet-processor-relay-denied_incl.xml">
+<!ENTITY bounces             SYSTEM "../conf/mailet-processor-bounces_incl.xml">
+<!ENTITY no-gateway          SYSTEM "../conf/mailet-processor-remotedeliverynogateway_incl.xml">
+]>
+
+<!-- See http://james.apache.org/server/3/config.html for usage -->
+
+<mailetcontainer enableJmx="true">
+    <context>
+       <postmaster>postmaster@jwmhosting.com</postmaster>
+    </context>
+    <spooler>
+       <threads>20</threads>
+    </spooler>
+
+    <processors>
+      &root;
+      &auth-outbound;
+      &inbound;
+      &error;
+      &transport;
+      &spam;
+      &virus;
+      &local-address-error;
+      &relay-denied;
+      &bounces;
+      &no-gateway;
+   </processors>
+
+</mailetcontainer>

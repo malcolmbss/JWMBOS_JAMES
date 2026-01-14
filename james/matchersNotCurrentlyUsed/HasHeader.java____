@@ -7,7 +7,7 @@ import java.util.Collection;
 
 public class HasHeader extends GenericMatcher
 {
-    public Collection match(Mail mail) throws javax.mail.MessagingException
+    public Collection match(Mail mail) throws jakarta.mail.MessagingException
     {
         log( "HasHeader " + "[" + getCondition() + "] " + (mail.getMessage().getHeader(getCondition(), null) != null));
         return (mail.getMessage().getHeader(getCondition(), null) != null) ? mail.getRecipients() : null;

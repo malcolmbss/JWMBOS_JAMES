@@ -55,15 +55,15 @@ public class RecognizedListManager extends JWMGenericMailet
 
     @Override public void init() throws MessagingException
     {
-        logger = LoggerFactory.getLogger(RecognizedListManager.class);
-        String repositoryPath = getInitParameter("repositoryPath");
-        if (repositoryPath != null)
-        {
-            logger.debug("RecognizedListManager repositoryPath: " + repositoryPath);
-        } else
-        {
-            throw new MessagingException("repositoryPath is null");
-        }
+//      logger = LoggerFactory.getLogger(RecognizedListManager.class);
+//      String repositoryPath = getInitParameter("repositoryPath");
+//      if (repositoryPath != null)
+//      {
+//          logger.debug("RecognizedListManager repositoryPath: " + repositoryPath);
+//      } else
+//      {
+//          throw new MessagingException("repositoryPath is null");
+//      }
         action = getInitParameter("action");
     }
 

@@ -33,7 +33,7 @@ import org.apache.james.core.MailAddress;
 import org.apache.james.util.sql.SqlResources;
 import org.apache.james.util.sql.JDBCUtil;
 import org.apache.james.user.api.UsersRepository;
-import javax.mail.MessagingException;
+import jakarta.mail.MessagingException;
 
 
 import java.util.Collection;
@@ -114,7 +114,7 @@ public class IsInWhiteList1 extends GenericMatcher {
         this.sqlParameters = sqlParameters;
     }
 
-    public void init() throws javax.mail.MessagingException {
+    public void init() throws jakarta.mail.MessagingException {
         String repositoryPath = null;
         StringTokenizer st = new StringTokenizer(getCondition(), ", \t", false);
         if (st.hasMoreTokens()) {

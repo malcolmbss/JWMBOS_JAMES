@@ -1,0 +1,11 @@
+org\apache\james\transport\mailets\JWMRemoveMimeHeader.class
+org\apache\james\transport\mailets\JWMHSpamAssassin.class
+org\apache\james\transport\mailets\JWMSpamAssassinInvoker.class
+org\apache\james\transport\mailets\JamesSpamAssassin.class
+org\apache\james\transport\mailets\JWMRemoteDelivery.class
+org\apache\james\transport\matchers\HeaderContains.class
+org\apache\james\transport\mailets\JWMGenericMailet.class
+org\apache\james\transport\mailets\JWMHSetMimeHeader.class
+org\apache\james\transport\mailets\RootLogger.class
+org\apache\james\transport\mailets\RecognizedListManager.class
+org\apache\james\transport\mailets\ExtLogger.class

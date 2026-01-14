@@ -16,8 +16,8 @@ import org.apache.mailet.base.RFC2822Headers;
 import java.util.*;
 import java.io.*;
 
-import javax.mail.*;
-import javax.mail.internet.*;
+import jakarta.mail.*;
+import jakarta.mail.internet.*;
 
 /** <P>Scans a message for viruses.</P>
  * <P>Creates a target directory for the current message, writes the message itself and

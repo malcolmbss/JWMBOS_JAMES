@@ -1,0 +1,162 @@
+
+    <!-- Processor CONFIGURATION SAMPLE: transport is a sample custom processor for local or -->
+    <!-- remote delivery -->
+    <processor state="transport" enableJmx="true">
+
+       <mailet match="All" class="JWMHSetMimeHeader">
+          <name>X-Processor-Transport</name>
+          <value>true</value>
+       </mailet>
+
+       <mailet match="SMTPAuthSuccessful" class="JWMHSetMimeHeader">
+          <name>X-UserIsAuth</name>
+          <value>true</value>
+       </mailet>
+
+       <mailet match="HasMailAttribute=org.apache.james.SMIMECheckSignature" class="JWMHSetMimeHeader">
+          <name>X-WasSigned</name>
+          <value>true</value>
+       </mailet>
+
+       <!-- Add a server-side signature -->
+       <!--
+       <mailet match="All" class="SMIMESign" onMailetException="ignore">
+          <keyStoreType>jks</keyStoreType>
+          <keyStoreFileName>path.keystore</keyStoreFileName>
+          <keyStorePassword>myKeyStorePass</keyStorePassword>
+          <keyAlias>myKeyAlias</keyAlias>
+          <keyAliasPassword>myKeyPass</keyAliasPassword>
+          <signerName>XXX Trusted Server</signerName>
+          <rebuildFrom>true</rebuildFrom>
+          <postmasterSigns>true</postmasterSigns>
+          <debug>true</debug>
+       </mailet>
+-->
+       <!--  The RecipientRewriteTable will use the definitions found in recipientrewritetablexml -->
+       <mailet match="All" class="RecipientRewriteTable" />
+
+       <mailet match="RecipientIsLocal" class="JWMToFoldersInbound"/>
+
+       <!-- Is the recipient is for a local account, deliver it locally -->
+       <mailet match="RecipientIsLocal" class="AddDeliveredToHeader"/>
+
+       <!-- if special bcc header added in ProcessRules mailet (see inbound processor), store duplicate copy of mail in bcc acct's INBOX folder -->
+       <mailet match="HasHeader=X_JWMH_BCC" class="JWMStoreMail" >
+          <consume>false</consume>
+          <targetAcctHeaderName>X_JWMH_BCC</targetAcctHeaderName>
+          <targetFolder>INBOX</targetFolder>
+       </mailet>
+
+       <!-- uses headers set in JWMToFoldersInbound -->
+       <mailet match="RecipientIsLocal" class="JWMStoreMail">
+          <consume>true</consume>
+       </mailet>
+
+       <!-- If the host is handled by this server and it did not get -->
+       <!-- locally delivered, this is an invalid recipient -->
+       <mailet match="HostIsLocal" class="ToProcessor">
+          <processor>local-address-error</processor>
+          <notice>550 - Requested action not taken: no such user here</notice>
+       </mailet>
+
+      <mailet match="All" class="org.apache.james.jdkim.mailets.ConvertTo7Bit"/>
+
+      <mailet match="All" class="org.apache.james.jdkim.mailets.DKIMSign">
+         <signatureTemplate>v=1; s=primary; d=jwmhosting.com; c=relaxed/relaxed; h=Message-ID:Date:Subject:From:To:MIME-Version:Content-Type; a=rsa-sha256; bh=; b=;</signatureTemplate>
+         <privateKey>
+             -----BEGIN RSA PRIVATE KEY-----
+             MIICXgIBAAKBgQDfRF6NEFFahhyOSiy+ufRU6PMvUVzP31wJ16zNaLKG8ipL1S8r
+             IDr7ZjkGiUdwqZ6BjNTddbmcH4AxTupNhANyXvJs+MxyJbMN3mkYHYn1evJGVqT8
+             5DrM7XrYMSVPK3Y4dfY4vhokQwATv+BwrW7K8QuwrDgvu8JdxM0muS/7lQIDAQAB
+             AoGASA5JsZ8lkmCcELQRstBS8aBo88l/ebsteiO4KmbyzyiSy/yWh4WUY5R/LQPb
+             IZoshMUN4hdfeuqTtdYxOikz7vgnLcMGXPwj2CQ0kMr7JILET3GpeE5jHnpVeAkz
+             0s59y8+qmGAVGEbbDvQyVDEPY35reX+rf4R7REBC72bzrjUCQQD04NgzlrIOhG0d
+             DCoBOawxDBpzH/4TdUzRB/rXsgwlJNQvHfSRpeTHZNJB5WRXhSoHxZHgV+2ZDOl8
+             izCwevpzAkEA6WhBRCY+54VVaSgZPZxpN/nfkJNc0Acs5PqvX1WPUizPubzmYDcA
+             DJ0iWMuiYJfKWxImKmdqTqKD/HOW2peH1wJBANwezVm6SX5RPcARsiR90jIYniIE
+             jSCynYV89dg0PUSaUX21IKZYCEnQcEw5xrQBiOGJkHKot3SPrcZ9XBwXv88CQQDe
+             LnjaV5HPr9OTCzGjvW1HdJuFM1HJUNtCiQNBu993OOLwCso90n1AhJ+6aPWD/1oI
+             ASnFebXvbrI3MQzrvgz3AkEAs1Tn0TfzsKmri6zrqJak1EDojHPdbPAjEFCpunt4
+             +dRCWhtnwEGZ1REeEBiQsk9CM24VNknO0uJOKF3ZYb3lFA==
+             -----END RSA PRIVATE KEY-----
+         </privateKey>
+       </mailet>
+
+       <!-- Attempt remote delivery using the specified repository for the spool, -->
+       <!-- using delay time to retry delivery and the maximum number of retries -->
+
+
+       <!-- gmail and others have higher trust for mail coming through gateway, but AWS SES must pre-approve the domains that can utilize the gateway -->
+       <!-- also currently ALL apache.org forums REJECT SES (gateway) emails because SES changes the Return-Path header which apache uses to identify subscriber -->
+
+       <mailet match="SenderIs=techstuff@malcolms.com" class="ToProcessor">
+          <processor>RemoteDeliveryNoGateway</processor>
+       </mailet>
+
+       <mailet match="All" class="ExtLogger">
+          <event>EXT_LOG_REMOTEDELIVERY</event>
+       </mailet>
+
+       <mailet match="All" class="RemoteDelivery">
+          <outgoing>outgoing</outgoing>
+
+          <!-- recommended in a blog to fix dkim problems -->
+          <mail.smtp.allow8bitmime>false</mail.smtp.allow8bitmime>
+
+          <!-- Delivery Schedule based upon RFC 2821, 4.5.4.1 -->
+          <!-- 5 day retry period, with 4 attempts in the first
+                 hour, two more within the first 6 hours, and then
+                 every 6 hours for the rest of the period.
+          <delayTime>4 * 15 minutes, 2 * 3 hours, 18 * 6 hours</delayTime>
+          -->
+          <delayTime>5000, 100000, 500000</delayTime>
+          <maxRetries>25</maxRetries>
+
+          <!-- The max reties which will used if no A or MX record for the domain was found. -->
+          <!-- If 0 it will fail on first time -->
+          <maxDnsProblemRetries>0</maxDnsProblemRetries>
+
+          <!-- The number of threads that should be trying to deliver outgoing messages -->
+          <deliveryThreads>10</deliveryThreads>
+
+          <!-- If false the message will not be sent to given server if any recipients fail -->
+          <sendpartial>true</sendpartial>
+
+          <!-- By default we send bounces to the "bounce" processor -->
+          <!-- By removing this configuration James will fallback to hardcoded bounce -->
+          <!-- notifications -->
+          <bounceProcessor>bounces</bounceProcessor>
+
+          <!-- A single mail server to deliver all outgoing messages. -->
+          <!-- This is useful if this server is a backup or failover machine, -->
+          <!-- or if you want all messages to be routed through a particular mail server, -->
+          <!-- regardless of the email addresses specified in the message -->
+          <!-- -->
+          <!-- The gateway element specifies the gateway SMTP server name. -->
+          <!-- If your gateway mail server is listening on a port other than 25, -->
+          <!-- you can set James to connect to it on that port using the gatewayPort -->
+          <!-- element. -->
+          <!-- Although normally multiple addresses are implemented through proper -->
+          <!-- DNS configuration, the RemoteDelivery mail does allow specifying -->
+          <!-- multiple gateway elements, each of which may also have a port -->
+          <!-- e.g., mygateway:2525 -->
+          <!-- the gatewayPort element is used as a default -->
+
+          <gateway>email-smtp.us-east-1.amazonaws.com</gateway>
+          <gatewayPort>587</gatewayPort>
+          <gatewayUsername>AKIA4D3MLBIX4IZMYV6V</gatewayUsername>
+          <gatewayPassword>BKmM3FXiJGExkJ+lQOX0/bbQdAf86yTm4nILAsOyX1S0</gatewayPassword>
+
+
+          <!-- Set the HELO/EHLO name to use when connectiong to remote SMTP-Server -->
+          <!-- JWM note - this must be here... and it must be elastic IP.  Otherwise it picks up AWS internal ip and recipients score it as spam -->
+          <!-- 11/8/19 - Changing to mxa2/3 from mxa1 since the ip address I got from AWS that I assigned to mxa1 is blacklisted at sbcglobal and icloud (and others??) -->
+
+          <mail.smtp.localhost>mail.jwmhosting.com</mail.smtp.localhost>  <!-- elastic ip domain name -->
+
+          <!-- if ip addresses are specified here, must use the AWS PRIVATE internal ip address; not the external elastic IP address -->
+          <mail.smtp.localaddress>172.31.1.102</mail.smtp.localaddress>   <!-- AWS EC2 PRIVATE ip address -->
+
+       </mailet>
+
+    </processor>
