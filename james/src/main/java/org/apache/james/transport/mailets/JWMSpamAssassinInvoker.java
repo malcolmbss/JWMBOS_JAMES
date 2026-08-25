@@ -64,38 +64,38 @@ public class JWMSpamAssassinInvoker {
      * Init the spamassassin invoker
      *
      * @param spamdHost
-     *            The host on which spamd runs
+     *                  The host on which spamd runs
      * @param spamdPort
-     *            The port on which spamd listen
+     *                  The port on which spamd listen
      */
     public JWMSpamAssassinInvoker(String spamdHost, int spamdPort) {
         this.spamdHost = spamdHost;
         this.spamdPort = spamdPort;
     }
 
-    public void service(Mail mail) {}
+    public void service(Mail mail) {
+    }
 
     /**
      * Scan a MimeMessage for spam by passing it to spamd.
      *
      * @param message
-     *            The MimeMessage to scan
+     *                The MimeMessage to scan
      * @return true if spam otherwise false
      * @throws MessagingException
-     *             if an error on scanning is detected
+     *                            if an error on scanning is detected
      */
     public boolean scanMail(MimeMessage message) throws MessagingException {
         Socket socket = null;
         OutputStream out = null;
         BufferedReader in = null;
 
-        try
-        {
+        try {
             socket = new Socket(spamdHost, spamdPort);
 
             out = socket.getOutputStream();
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-//            out.write("CHECK SPAMC/1.2\r\n\r\n".getBytes());
+            // out.write("CHECK SPAMC/1.2\r\n\r\n".getBytes());
             out.write("REPORT SPAMC/1.2\r\n\r\n".getBytes());
 
             // pass the message to spamd
@@ -103,35 +103,42 @@ public class JWMSpamAssassinInvoker {
             out.flush();
             socket.shutdownOutput();
             String s;
-            int i=100;
+            int i = 100;
             headers.put("X-SpamAssassin_000", "--");
-            while ((s = in.readLine()) != null)
-            {
-                spamdLogger.debug( s );
+            while ((s = in.readLine()) != null) {
+                spamdLogger.debug(s);
                 headers.put("X-SpamAssassin_" + (i++), s);
-                if (s.startsWith("Spam:"))
-                {
+                if (s.startsWith("Spam:")) {
                     StringTokenizer t = new StringTokenizer(s, " ");
-                    boolean spam =false;
+                    boolean spam = false;
                     try {
                         t.nextToken();
                         spam = Boolean.valueOf(t.nextToken());
                     } catch (Exception e) {
                         // On exception return false
-//                      return false;
+                        // return false;
                     }
                     t.nextToken();
                     hits = t.nextToken();
                     t.nextToken();
                     required = t.nextToken();
 
-                    if (spam)
-                    {
+                    if (spam) {
                         headers.put(FLAG_MAIL_ATTRIBUTE_NAME, "YES");
                         headers.put(STATUS_MAIL_ATTRIBUTE_NAME, "Yes, hits=" + hits + " required=" + required);
-                    }
-                    else
-                    {
+                        float fHits = Float.parseFloat(hits);
+
+                        if (fHits >= 20.0) {
+                            headers.put("X-Spam-Category", "ExtremelyHigh");
+                        } else if (fHits >= 15.0) {
+                            headers.put("X-Spam-Category", "High");
+                        } else if (fHits >= 10.0) {
+                            headers.put("X-Spam-Category", "Medium");
+                        } else {
+                            headers.put("X-Spam-Category", "Marginal");
+                        }
+                        
+                    } else {
                         headers.put(FLAG_MAIL_ATTRIBUTE_NAME, "NO");
                         headers.put(STATUS_MAIL_ATTRIBUTE_NAME, "No, hits=" + hits + " required=" + required);
                     }
@@ -139,28 +146,23 @@ public class JWMSpamAssassinInvoker {
             }
             headers.put("X-SpamAssassin_999", "--");
 
-            try
-            {
-               headers.put("X-Spam-Hits", hits );
-               if ( new BigDecimal(hits).compareTo( new BigDecimal(10) ) == 1 )
-               {
-                  headers.put("X-Spam-VeryHighProbability", "YES");
-               }
-            }
-            catch( Exception e)
-            {
-               headers.put("X-Spam-Exception", e.toString() );
+            try {
+                headers.put("X-Spam-Score", hits);
+                headers.put("X-Spam-Hits", hits); // deprecated, but possibly still in use in places
+
+            } catch (Exception e) {
+                headers.put("X-Spam-Exception", e.toString());
             }
 
             return false;
-        }
-        catch (UnknownHostException e1)
-        {
+        } catch (UnknownHostException e1) {
             throw new MessagingException("Error communicating with spamd. Unknown host: " + spamdHost);
         } catch (IOException e1) {
-            throw new MessagingException("Error communicating with spamd on " + spamdHost + ":" + spamdPort + " Exception: " + e1);
+            throw new MessagingException(
+                    "Error communicating with spamd on " + spamdHost + ":" + spamdPort + " Exception: " + e1);
         } catch (MessagingException e1) {
-            throw new MessagingException("Error communicating with spamd on " + spamdHost + ":" + spamdPort + " Exception: " + e1);
+            throw new MessagingException(
+                    "Error communicating with spamd on " + spamdHost + ":" + spamdPort + " Exception: " + e1);
         } finally {
             try {
                 in.close();
