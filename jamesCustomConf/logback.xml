@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!-- ====================================================== -->
+    <!-- MAIN JAMES LOG                                         -->
+    <!-- ====================================================== -->
+
+    <appender name="FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <file>logs/james.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/james.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
+        </encoder>
+
+    </appender>
+
+
+    <!-- ====================================================== -->
+    <!-- CONSOLE / SYSTEMD JOURNAL                              -->
+    <!-- ====================================================== -->
+
+    <appender name="CONSOLE"
+              class="ch.qos.logback.core.ConsoleAppender">
+
+        <encoder>
+            <pattern>%date %highlight(%-5level) [%thread] %logger{10} - %msg%n</pattern>
+        </encoder>
+
+    </appender>
+
+
+    <!-- ====================================================== -->
+    <!-- MAILET LOG                                             -->
+    <!-- ====================================================== -->
+
+    <appender name="MAILET_FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <file>logs/mailet.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/mailet.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
+        </encoder>
+
+    </appender>
+
+
+    <!-- ====================================================== -->
+    <!-- SIEVE LOG                                              -->
+    <!-- ====================================================== -->
+
+    <appender name="SIEVE_FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <file>logs/sieve.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/sieve.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
+        </encoder>
+
+    </appender>
+
+
+    <!-- ====================================================== -->
+    <!-- ROOT LOGGER                                            -->
+    <!-- ====================================================== -->
+
+    <!--
+        All messages at INFO or above are written to james.log
+        and the systemd journal.
+
+        Individual loggers can override the logging level.
+
+        Additivity is enabled by default, so messages written
+        to mailet.log or sieve.log also appear in james.log.
+    -->
+
+    <root level="INFO">
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+
+    <!-- ====================================================== -->
+    <!-- SMTP                                                   -->
+    <!-- ====================================================== -->
+
+    <logger name="org.apache.james.smtpserver"
+            level="INFO"/>
+
+
+    <!-- ====================================================== -->
+    <!-- IMAP                                                   -->
+    <!-- ====================================================== -->
+
+    <logger name="org.apache.james.imapserver"
+            level="INFO"/>
+
+
+    <!-- ====================================================== -->
+    <!-- GENERAL TRANSPORT PROCESSING                            -->
+    <!-- ====================================================== -->
+
+    <logger name="org.apache.james.transport"
+            level="DEBUG"/>
+
+
+    <!-- ====================================================== -->
+    <!-- MAILETS                                                -->
+    <!-- ====================================================== -->
+
+    <!--
+        Includes custom mailets in:
+        org.apache.james.transport.mailets
+    -->
+
+    <logger name="org.apache.james.transport.mailets"
+            level="DEBUG">
+
+        <appender-ref ref="MAILET_FILE"/>
+
+    </logger>
+
+
+    <!-- ====================================================== -->
+    <!-- MAILET CONTAINER                                       -->
+    <!-- ====================================================== -->
+
+    <logger name="org.apache.james.mailetcontainer"
+            level="INFO">
+
+        <appender-ref ref="MAILET_FILE"/>
+
+    </logger>
+
+
+    <!-- ====================================================== -->
+    <!-- SIEVE FILTER EXECUTION                                 -->
+    <!-- ====================================================== -->
+
+    <logger name="org.apache.james.transport.mailets.jsieve"
+            level="DEBUG">
+
+        <appender-ref ref="SIEVE_FILE"/>
+
+    </logger>
+
+
+    <!-- ====================================================== -->
+    <!-- MANAGESIEVE SERVER                                     -->
+    <!-- ====================================================== -->
+
+    <!--
+        Includes ManageSieve connections and script management.
+        Useful for debugging Roundcube filter configuration.
+    -->
+
+    <logger name="org.apache.james.managesieve"
+            level="INFO">
+
+        <appender-ref ref="SIEVE_FILE"/>
+
+    </logger>
+
+</configuration>

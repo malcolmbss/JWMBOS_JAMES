@@ -1,13 +1,16 @@
-    <processor state="bounces" enableJmx="true">
+<processor state="bounces" enableJmx="true">
+    <mailet match="All" class="MetricsMailet">
+        <metricName>bounces</metricName>
+    </mailet>
 
-       <mailet match="HasHeader=X_JWMH_LOGGING_DATASOURCE" class="ExtLogger">
-          <event>EXT_LOG_BOUNCE</event>
-       </mailet>
+    <mailet match="HasHeader=X_JWMH_LOGGING_DATASOURCE" class="ExtLogger">
+        <event>EXT_LOG_BOUNCE</event>
+    </mailet>
 
-       <mailet match="All" class="DSNBounce">
-          <passThrough>false</passThrough>
-          <prefix>[bounce]</prefix>
-          <attachment>message</attachment>
-          <messageString>From the mail server at JWMHosting - I'm not able to deliver this message.</messageString>
-        </mailet>
-    </processor>
+    <mailet match="All" class="DSNBounce">
+        <passThrough>false</passThrough>
+        <prefix>[bounce]</prefix>
+        <attachment>message</attachment>
+        <messageString>From the mail server at JWMHosting - I'm not able to deliver this message.</messageString>
+    </mailet>
+</processor>

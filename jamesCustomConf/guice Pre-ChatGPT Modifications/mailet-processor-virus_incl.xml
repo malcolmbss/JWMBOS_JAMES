@@ -1,0 +1,19 @@
+    <!-- messages containing viruses. -->
+    <processor state="virus" enableJmx="true">
+
+       <!-- To avoid a loop while bouncing -->
+       <mailet match="All" class="SetMailAttribute">
+          <org.apache.james.infected>true, bouncing</org.apache.james.infected>
+       </mailet>
+
+       <!-- If the sender is authenticated, notify the infection -->
+       <mailet match="SMTPAuthSuccessful" class="Bounce">
+          <inline>heads</inline>
+          <attachment>none</attachment>
+          <notice>Warning: We were unable to deliver the message below because it was found infected by virus(es).</notice>
+       </mailet>
+
+       <!-- In any other situation ghost it, -->
+       <!-- as viruses almost always spoof the sender's address -->
+       <mailet match="All" class="Null" />
+    </processor>

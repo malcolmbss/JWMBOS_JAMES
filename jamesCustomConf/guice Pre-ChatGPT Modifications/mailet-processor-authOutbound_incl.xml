@@ -1,0 +1,50 @@
+    <processor state="authorized-outbound" enableJmx="true">
+
+       <mailet match="All" class="JWMHSetMimeHeader">
+          <name>X-Processor-Authorized-Outbound</name>
+          <value>true</value>
+       </mailet>
+
+       <!-- required by JWM Rules Engine -->
+       <mailet match="All" class="JWMHSetMimeHeader">
+          <name>X_JWMH_OUTBOUND</name>
+          <value>true</value>
+       </mailet>
+
+       <mailet match="HasHeader=X_JWMH_LOGGING_DATASOURCE" class="ExtLogger">
+          <event>EXT_LOG_OUTBOUND</event>
+       </mailet>
+
+       <!-- this sets 'green' send flag if rules match -->
+       <mailet match="All" class="JWMProcessRules">
+          <ruleType>103</ruleType>
+       </mailet>
+
+       <!-- add recipient to whitelist if not a local user -->
+       <mailet notmatch="RecipientIsLocal" class="RecognizedListManager">
+          <repositoryPath>db://maildb</repositoryPath>
+          <action>addToWhiteList</action>
+       </mailet>
+
+       <mailet match="All" class="JWMToFoldersOutbound"/>
+
+       <!-- uses headers set in JWWToFoldersOutbound -->
+       <mailet match="All" class="JWMStoreMail"/>
+
+
+       <!--  if local recipient... even though originally outbound, this mail is no longer outbound... it becomes inbound now -->
+
+       <mailet match="RecipientIsLocal" class="JWMRemoveMimeHeader">
+          <name>X_JWMH_OUTBOUND,X_JWMH_TGTACCT,X_JWMH_TGTFOLDER,X_JWMH_FLAG</name>
+       </mailet>
+
+       <mailet match="RecipientIsLocal" class="JWMHSetMimeHeader">
+          <name>X_JWMH_INBOUND</name>
+          <value>true</value>
+       </mailet>
+
+       <mailet match="All" class="ToProcessor">
+          <processor>transport</processor>
+       </mailet>
+
+    </processor>

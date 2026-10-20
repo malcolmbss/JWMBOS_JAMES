@@ -1,16 +1,48 @@
-<?xml version="1.0"?>
 <imapservers>
     <imapserver enabled="true">
-       <jmxName>imapserver</jmxName>
-       <bind>0.0.0.0:143</bind>
-       <connectionBacklog>200</connectionBacklog>
-       <tls socketTLS="false" startTLS="true">
-          <privateKey>file:///etc/letsencrypt/live/newimap.jwmhosting.com/privkey.pem</privateKey>
-          <certificates>file:///etc/letsencrypt/live/newimap.jwmhosting.com/cert.pem</certificates>
-       </tls>
-       <helloName autodetect="true">JWMHosting.com</helloName>
-       <connectionLimit>0</connectionLimit>
-       <connectionLimitPerIP>0</connectionLimitPerIP>
-       <plainAuthDisallowed>false</plainAuthDisallowed>
+        <jmxName>imapserver</jmxName>
+        <bind>0.0.0.0:143</bind>
+        <connectionBacklog>201</connectionBacklog>
+        <tls socketTLS="false" startTLS="true">
+            <keystoreType>PEM</keystoreType>
+             <privateKey>file://conf/privkey.pem</privateKey>
+             <certificates>file://conf/fullchain.pem</certificates>
+        </tls>
+        <idleTimeInterval>120</idleTimeInterval>
+        <idleTimeIntervalUnit>SECONDS</idleTimeIntervalUnit>
+        <enableIdle>true</enableIdle>
+        <plainAuthDisallowed>true</plainAuthDisallowed>
+        <auth>
+            <plainAuthEnabled>true</plainAuthEnabled>
+        </auth>
+        <connectionLimit>200</connectionLimit>
+        <connectionLimitPerIP>50</connectionLimitPerIP>
+    </imapserver>
+
+  <!-- IMAPS / implicit TLS -->
+    <imapserver enabled="true">
+        <jmxName>imapserver-993</jmxName>
+        <bind>0.0.0.0:993</bind>
+
+        <connectionBacklog>201</connectionBacklog>
+
+        <tls socketTLS="true" startTLS="false">
+            <keystoreType>PEM</keystoreType>
+            <privateKey>file://conf/privkey.pem</privateKey>
+            <certificates>file://conf/fullchain.pem</certificates>
+        </tls>
+
+        <connectionLimit>200</connectionLimit>
+        <connectionLimitPerIP>50</connectionLimitPerIP>
+
+        <idleTimeInterval>120</idleTimeInterval>
+        <idleTimeIntervalUnit>SECONDS</idleTimeIntervalUnit>
+        <enableIdle>true</enableIdle>
+
+        <plainAuthDisallowed>true</plainAuthDisallowed>
+
+        <auth>
+            <plainAuthEnabled>true</plainAuthEnabled>
+        </auth>
     </imapserver>
 </imapservers>

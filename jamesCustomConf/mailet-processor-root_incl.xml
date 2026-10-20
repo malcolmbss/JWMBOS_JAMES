@@ -1,25 +1,24 @@
-    <processor state="root" enableJmx="true">
+<processor state="root" enableJmx="true">
 
-       <mailet match="All" class="PostmasterAlias"/>
+   <mailet match="All" class="PostmasterAlias" />
 
-       <mailet match="All" class="RootLogger"/>
+   <mailet match="All" class="RootLogger" />
 
-       <mailet match="All" class="JWMHSetMimeHeader">
-          <name>X-Processor-Root</name>
-          <value>true</value>
-       </mailet>
+   <mailet match="All" class="JWMHSetMimeHeader">
+      <name>X-Processor-Root</name>
+      <value>true</value>
+   </mailet>
 
-       <!-- this will set X_JWMH_LOGGING_DATASOURCE, X_JWMH_LOGGING_TYPE, and X_JWMH_LOGGING_ID headers if any logging of mail is to occur in secondary (client) database-->
-       <mailet match="All" class="JWMProcessRules">
-          <ruleType>105</ruleType>
-       </mailet>
+   <mailet match="RelayLimit=30" class="ToRepository">
+      <repositoryPath>postgres://var/mail/relay-limit-exceeded/</repositoryPath>
+   </mailet>
 
-       <mailet match="SMTPAuthSuccessful" class="ToProcessor">
-          <processor>authorized-outbound</processor>
-       </mailet>
+   <mailet match="SMTPAuthSuccessful" class="ToProcessor">
+      <processor>authorized-outbound</processor>
+   </mailet>
 
-       <mailet match="All" class="ToProcessor">
-          <processor>inbound</processor>
-       </mailet>
+   <mailet match="All" class="ToProcessor">
+      <processor>inbound</processor>
+   </mailet>
 
-    </processor>
+</processor>

@@ -1,5 +1,6 @@
 S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\matchers\HeaderContains.java
 S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\ExtLogger.java
+S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMDKIMSign.java
 S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMHSetMimeHeader.java
 S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\JWMSpamAssassinInvoker.java
 S:\Repositories\JWMBOS_JAMES\james\src\main\java\org\apache\james\transport\mailets\RecognizedListManager.java

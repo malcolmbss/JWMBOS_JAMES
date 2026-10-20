@@ -1,69 +1,98 @@
-<?xml version="1.0"?>
-
-<!-- See http://james.apache.org/server/3/config.html for usage -->
-
-<!-- Why so many smtp server instances?
-      25      - startTLS standard ports
-    2025      - startTLS backdoor smtp to bypass ISP blocking of ports 25/587 to prevent spamming
-
-    All smtp servers perform the same function and route mail to the same flow
-    Client can choose any one based on connectivity requirements
--->
-
 <smtpservers>
-   <smtpserver enabled="true">
-     <jmxName>SMTPServer</jmxName>
-     <bind>0.0.0.0:25</bind>
-     <connectionBacklog>200</connectionBacklog>
 
-     <tls socketTLS="false" startTLS="true">
-        <privateKey>file:///etc/letsencrypt/live/newimap.jwmhosting.com/privkey.pem</privateKey>
-        <certificates>file:///etc/letsencrypt/live/newimap.jwmhosting.com/cert.pem</certificates>
-     </tls>
+    <smtpserver enabled="true">
+        <jmxName>smtpserver-mx</jmxName>
+        <bind>0.0.0.0:25</bind>
 
-     <helloName autodetect="true">JWMHosting.com</helloName>
-     <connectiontimeout>360</connectiontimeout>
-     <connectionLimit>0</connectionLimit>
-     <connectionLimitPerIP>0</connectionLimitPerIP>
-     <authRequired>true</authRequired>
-     <authorizedAddresses>127.0.0.0/8</authorizedAddresses>
-     <verifyIdentity>false</verifyIdentity>
-     <maxmessagesize>0</maxmessagesize>
-     <heloEhloEnforcement>true</heloEhloEnforcement>
+        <tls socketTLS="false" startTLS="true">
+             <keystoreType>PEM</keystoreType>
+             <privateKey>file://conf/privkey.pem</privateKey>
+             <certificates>file://conf/fullchain.pem</certificates>
+        </tls>
+        <handlerchain>
+           <handler class="org.apache.james.smtpserver.fastfail.ValidRcptHandler"/>
+           <handler class="org.apache.james.smtpserver.CoreCmdHandlerLoader"/>
+        </handlerchain>
+        <auth>
+            <announce>never</announce>
+            <requireSSL>false</requireSSL>
+            <plainAuthEnabled>true</plainAuthEnabled>
+        </auth>
+    </smtpserver>
 
-     <addressBracketsEnforcement>true</addressBracketsEnforcement>
+    <smtpserver enabled="true">
+        <jmxName>smtpserver-TLS</jmxName>
+        <bind>0.0.0.0:465</bind>
+        <connectionBacklog>200</connectionBacklog>
+        <tls socketTLS="true" startTLS="false">
+           <keystoreType>PEM</keystoreType>
+           <privateKey>file://conf/privkey.pem</privateKey>
+           <certificates>file://conf/fullchain.pem</certificates>
+        </tls>
+        <connectiontimeout>360</connectiontimeout>
+        <connectionLimit>100</connectionLimit>
+        <connectionLimitPerIP>20</connectionLimitPerIP>
+        <maxmessagesize>25600</maxmessagesize>
+        <auth>
+            <announce>forUnauthorizedAddresses</announce>
+            <requireSSL>true</requireSSL>
+            <plainAuthEnabled>true</plainAuthEnabled>
+            <!-- Sample OIDC configuration -->
+            <!--
+            <oidc>
+                <oidcConfigurationURL>https://changeme.org/auth/realms/upn/.well-known/openid-configuration</oidcConfigurationURL>
+                <jwksURL>https://changeme.org/auth/realms/upn/protocol/openid-connect/certs</jwksURL>
+                <claim>email</claim>
+                <scope>openid profile email</scope>
+            </oidc>
+            -->
+        </auth>
+        <authorizedAddresses>127.0.0.0/8</authorizedAddresses>
+        <verifyIdentity>true</verifyIdentity>
+        <addressBracketsEnforcement>true</addressBracketsEnforcement>
+        <smtpGreeting>JWMHosting SMTP Server</smtpGreeting>
+        <handlerchain>
+            <handler class="org.apache.james.smtpserver.fastfail.ValidRcptHandler"/>
+            <handler class="org.apache.james.smtpserver.CoreCmdHandlerLoader"/>
+        </handlerchain>
+    </smtpserver>
 
-     <smtpGreeting>JWMHosting SMTP Server</smtpGreeting>
-
-     <handlerchain/>
-   </smtpserver>
-
-   <smtpserver enabled="true">
-     <jmxName>altSMTPServer</jmxName>
-     <bind>0.0.0.0:2025</bind>
-     <connectionBacklog>200</connectionBacklog>
-
-     <tls socketTLS="false" startTLS="true">
-        <privateKey>file:///etc/letsencrypt/live/newimap.jwmhosting.com/privkey.pem</privateKey>
-        <certificates>file:///etc/letsencrypt/live/newimap.jwmhosting.com/cert.pem</certificates>
-     </tls>
-
-     <helloName autodetect="true">JWMHosting.com</helloName>
-     <connectiontimeout>360</connectiontimeout>
-     <connectionLimit>0</connectionLimit>
-     <connectionLimitPerIP>0</connectionLimitPerIP>
-     <authRequired>true</authRequired>
-     <authorizedAddresses>127.0.0.0/8</authorizedAddresses>
-     <verifyIdentity>false</verifyIdentity>
-     <maxmessagesize>0</maxmessagesize>
-     <heloEhloEnforcement>true</heloEhloEnforcement>
-
-     <addressBracketsEnforcement>true</addressBracketsEnforcement>
-
-     <smtpGreeting>JWMHosting SMTP Server</smtpGreeting>
-
-     <!-- Port 2025 smtp is for outbound only.  Will never receive inbound external mail. So no fastfail handlers required -->
-     <handlerchain/>
-   </smtpserver>
+    <smtpserver enabled="true">
+        <jmxName>smtpserver-startTLS</jmxName>
+        <bind>0.0.0.0:587</bind>
+        <connectionBacklog>200</connectionBacklog>
+        <tls socketTLS="false" startTLS="true">
+           <keystoreType>PEM</keystoreType>
+           <privateKey>file://conf/privkey.pem</privateKey>
+           <certificates>file://conf/fullchain.pem</certificates>
+        </tls>
+        <connectiontimeout>360</connectiontimeout>
+        <connectiontimeout>360</connectiontimeout>
+        <connectionLimit>100</connectionLimit>
+        <connectionLimitPerIP>20</connectionLimitPerIP>
+        <maxmessagesize>25600</maxmessagesize>
+        <auth>
+            <announce>forUnauthorizedAddresses</announce>
+            <requireSSL>true</requireSSL>
+            <plainAuthEnabled>true</plainAuthEnabled>
+            <!-- Sample OIDC configuration -->
+            <!--
+            <oidc>
+                <oidcConfigurationURL>https://changeme.org/auth/realms/upn/.well-known/openid-configuration</oidcConfigurationURL>
+                <jwksURL>https://changeme.org/auth/realms/upn/protocol/openid-connect/certs</jwksURL>
+                <claim>email</claim>
+                <scope>openid profile email</scope>
+            </oidc>
+            -->
+        </auth>
+        <authorizedAddresses>127.0.0.0/8</authorizedAddresses>
+        <verifyIdentity>true</verifyIdentity>
+        <addressBracketsEnforcement>true</addressBracketsEnforcement>
+        <smtpGreeting>JWMHosting SMTP Server</smtpGreeting>
+        <handlerchain>
+            <handler class="org.apache.james.smtpserver.fastfail.ValidRcptHandler"/>
+            <handler class="org.apache.james.smtpserver.CoreCmdHandlerLoader"/>
+        </handlerchain>
+    </smtpserver>
 
 </smtpservers>

@@ -1,14 +1,14 @@
-    <processor state="spam" enableJmx="true">
-       <mailet match="All" class="JWMHSetMimeHeader">
-          <name>X-Processor-Spam</name>
-          <value>true</value>
-       </mailet>
+<processor state="spam" enableJmx="true">
+   <mailet match="All" class="JWMHSetMimeHeader">
+      <name>X-Processor-Spam-Final-Assessment</name>
+      <value>true</value>
+   </mailet>
 
-       <mailet match="All" class="JWMToFoldersInbound"/>
+   <!-- the purpose of this processor is to normalize to a single header for binary spam/not-spam decision
+        used by JWMBOS Sieve configuration to determine target folder.
+        Flag is set now... back to transport for final folder processing -->
 
-       <!-- uses headers set in JWMToFoldersInbound -->
-       <mailet match="All" class="JWMStoreMail">
-         <targetFolder>Spam</targetFolder>
-         <consume>true</consume>
-       </mailet>
-    </processor>
+   <mailet match="All" class="ToProcessor">
+      <processor>transport</processor>
+   </mailet>
+</processor>

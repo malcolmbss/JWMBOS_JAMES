@@ -1,5 +1,12 @@
-    <processor state="error" enableJmx="true">
-       <mailet match="All" class="ToRepository">
-          <repositoryPath>db://maildb/deadletter/error</repositoryPath>
-       </mailet>
-    </processor>
+<processor state="error" enableJmx="true">
+    <mailet match="All" class="MetricsMailet">
+        <metricName>mailetContainerErrors</metricName>
+    </mailet>
+    <mailet match="All" class="Bounce">
+        <onMailetException>ignore</onMailetException>
+    </mailet>
+    <mailet match="All" class="ToRepository">
+        <repositoryPath>postgres://var/mail/error/</repositoryPath>
+        <onMailetException>propagate</onMailetException>
+    </mailet>
+</processor>

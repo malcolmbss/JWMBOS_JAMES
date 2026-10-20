@@ -1,12 +1,13 @@
 package org.apache.james.transport.mailets;
 
-import org.apache.mailet.base.GenericMailet;
 import org.apache.mailet.Mail;
-
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
+import org.apache.mailet.base.GenericMailet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import jakarta.mail.Flags;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 
 /**
  * Sends the message through daemonized SpamAssassin (spamd), visit <a
@@ -43,7 +44,8 @@ public class JamesSpamAssassin extends GenericMailet {
     /**
      * @see org.apache.mailet.base.GenericMailet#init()
      */
-    @Override public void init(){
+    @Override
+    public void init() {
         spamdHost = getInitParameter("spamdHost");
         if (spamdHost == null || spamdHost.equals("")) {
             spamdHost = "127.0.0.1";
@@ -65,20 +67,23 @@ public class JamesSpamAssassin extends GenericMailet {
     /**
      * @see org.apache.mailet.base.GenericMailet#service(Mail)
      */
-    @Override public void service(Mail mail) {
+    @Override
+    public void service(Mail mail) {
         try {
             MimeMessage message = mail.getMessage();
 
             // Invoke spamassian connection and scan the message
-            logger.debug( "calling JWMSpamAssassinInvoker (spamd)" );
+            logger.debug("calling JWMSpamAssassinInvoker (spamd)");
             JWMSpamAssassinInvoker sa = new JWMSpamAssassinInvoker(spamdHost, spamdPort);
             sa.scanMail(message);
 
             // Add headers as attribute to mail object
-            for (String key : sa.getHeadersAsAttribute().keySet())
-            {
+            for (String key : sa.getHeadersAsAttribute().keySet()) {
                 String headerValue = sa.getHeadersAsAttribute().get(key);
                 message.setHeader(key, headerValue);
+                if (key.equals("X-Spam-Category-Tag") && !headerValue.equals("---")) {
+                    mail.getMessage().setFlags(new Flags(headerValue), true);
+                }
                 logger.debug("(spamd) - JWMHSpamAssassin Add Header: " + key + " = " + headerValue);
             }
 
@@ -92,7 +97,8 @@ public class JamesSpamAssassin extends GenericMailet {
     /**
      * @see org.apache.mailet.base.GenericMailet#getMailetInfo()
      */
-    @Override public String getMailetInfo() {
+    @Override
+    public String getMailetInfo() {
         return "Checks message against SpamAssassin";
     }
 }

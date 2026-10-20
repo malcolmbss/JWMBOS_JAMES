@@ -21,9 +21,7 @@ package org.apache.james.transport.mailets;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
-import org.apache.mailet.base.GenericMailet;
 import java.net.Socket;
-import java.math.BigDecimal;
 import java.net.UnknownHostException;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -32,16 +30,21 @@ import java.io.OutputStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.StringTokenizer;
+
+import org.apache.james.user.api.UsersRepository;
 import org.apache.mailet.Mail;
+import org.apache.mailet.StorageDirective;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Sends the message through daemonized SpamAssassin (spamd), visit <a
  * href="SpamAssassin.org">SpamAssassin.org</a> for info on configuration.
  */
 public class JWMSpamAssassinInvoker {
-
+    private static final Logger logger = LoggerFactory.getLogger(JWMSpamAssassinInvoker.class);
     /** The mail attribute under which the status get stored */
     public final static String STATUS_MAIL_ATTRIBUTE_NAME = "org.apache.james.spamassassin.status";
 
@@ -55,6 +58,7 @@ public class JWMSpamAssassinInvoker {
     private String hits = "?";
 
     private String required = "?";
+    //protected Mail mail;
 
     private final Map<String, String> headers = new LinkedHashMap<String, String>();
 
@@ -113,7 +117,7 @@ public class JWMSpamAssassinInvoker {
                     boolean spam = false;
                     try {
                         t.nextToken();
-                        spam = Boolean.valueOf(t.nextToken());
+                        spam = Boolean.parseBoolean(t.nextToken());
                     } catch (Exception e) {
                         // On exception return false
                         // return false;
@@ -127,18 +131,21 @@ public class JWMSpamAssassinInvoker {
                         headers.put(FLAG_MAIL_ATTRIBUTE_NAME, "YES");
                         headers.put(STATUS_MAIL_ATTRIBUTE_NAME, "Yes, hits=" + hits + " required=" + required);
                         float fHits = Float.parseFloat(hits);
-
                         if (fHits >= 20.0) {
                             headers.put("X-Spam-Category", "ExtremelyHigh");
+                            headers.put("X-Spam-Category-Tag", "$label5");
                         } else if (fHits >= 15.0) {
                             headers.put("X-Spam-Category", "High");
+                            headers.put("X-Spam-Category-Tag", "$label4");
                         } else if (fHits >= 10.0) {
                             headers.put("X-Spam-Category", "Medium");
+                            headers.put("X-Spam-Category-Tag", "$label2");
                         } else {
                             headers.put("X-Spam-Category", "Marginal");
+                            headers.put("X-Spam-Category-Tag", "$label1");
                         }
-                        
                     } else {
+                        headers.put("X-Spam-Category-Tag", "---");
                         headers.put(FLAG_MAIL_ATTRIBUTE_NAME, "NO");
                         headers.put(STATUS_MAIL_ATTRIBUTE_NAME, "No, hits=" + hits + " required=" + required);
                     }
@@ -154,7 +161,7 @@ public class JWMSpamAssassinInvoker {
                 headers.put("X-Spam-Exception", e.toString());
             }
 
-            return false;
+            return !"?".equals(hits) && Float.parseFloat(hits) > 0.0f;
         } catch (UnknownHostException e1) {
             throw new MessagingException("Error communicating with spamd. Unknown host: " + spamdHost);
         } catch (IOException e1) {

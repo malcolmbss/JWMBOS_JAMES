@@ -1,0 +1,13 @@
+    <processor state="bounces" enableJmx="true">
+
+       <mailet match="HasHeader=X_JWMH_LOGGING_DATASOURCE" class="ExtLogger">
+          <event>EXT_LOG_BOUNCE</event>
+       </mailet>
+
+       <mailet match="All" class="DSNBounce">
+          <passThrough>false</passThrough>
+          <prefix>[bounce]</prefix>
+          <attachment>message</attachment>
+          <messageString>From the mail server at JWMHosting - I'm not able to deliver this message.</messageString>
+        </mailet>
+    </processor>

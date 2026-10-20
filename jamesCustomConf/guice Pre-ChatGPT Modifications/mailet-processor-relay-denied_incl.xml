@@ -1,0 +1,5 @@
+    <processor state="relay-denied" enableJmx="true">
+       <mailet match="All" class="ToRepository">
+          <repositoryPath>db://maildb/deadletter/relay-denied</repositoryPath>
+       </mailet>
+    </processor>

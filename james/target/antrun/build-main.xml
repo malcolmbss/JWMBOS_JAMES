@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="maven-antrun-" default="main">
+  <target name="main">
+    <copy file="S:\Repositories\JWMBOS_JAMES\james\target/custom-mailets-1.0.0.jar" todir="J:\opt\james-3.9.0-server-postgres-app\extensions-jars" />
+  </target>
+</project>

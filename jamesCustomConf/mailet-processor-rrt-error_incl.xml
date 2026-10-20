@@ -1,0 +1,15 @@
+<processor state="rrt-error" enableJmx="false">
+
+    <mailet match="All" class="JWMHSetMimeHeader">
+       <name>X-Processor-RRT-Error</name>
+       <value>true</value>
+    </mailet>
+
+    <mailet match="All" class="ToRepository">
+        <repositoryPath>postgres://var/mail/rrt-error/</repositoryPath>
+        <passThrough>true</passThrough>
+    </mailet>
+    <mailet match="IsSenderInRRTLoop" class="Null"/>
+    <mailet match="All" class="Bounce"/>
+</processor>
+

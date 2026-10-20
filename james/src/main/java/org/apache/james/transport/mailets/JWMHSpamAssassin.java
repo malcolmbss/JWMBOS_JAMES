@@ -39,7 +39,7 @@ public class JWMHSpamAssassin extends JamesSpamAssassin {
                if (statusArray[0].toUpperCase().equals("YES")) {
                   message.setHeader("X-Spam-Flag-True", "True");
                }
-               message.setSubject("[Spam Score: " + message.getHeader("X-Spam-Score")[0] + "] " + message.getSubject());
+               message.setSubject("[" + message.getHeader("X-Spam-Score")[0] + "] " + message.getSubject());
                logger.debug("JWMHSpamAssassin.service() setHeader: X-Spam-Flag " + statusArray[0].toUpperCase().trim());
             } else {
                message.setHeader("X-Spam-Flag", "Error");

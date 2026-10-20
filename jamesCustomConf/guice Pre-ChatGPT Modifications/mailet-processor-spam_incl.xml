@@ -1,0 +1,14 @@
+    <processor state="spam" enableJmx="true">
+       <mailet match="All" class="JWMHSetMimeHeader">
+          <name>X-Processor-Spam</name>
+          <value>true</value>
+       </mailet>
+
+       <mailet match="All" class="JWMToFoldersInbound"/>
+
+       <!-- uses headers set in JWMToFoldersInbound -->
+       <mailet match="All" class="JWMStoreMail">
+         <targetFolder>Spam</targetFolder>
+         <consume>true</consume>
+       </mailet>
+    </processor>

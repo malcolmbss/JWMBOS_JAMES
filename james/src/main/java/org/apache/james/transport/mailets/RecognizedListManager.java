@@ -12,362 +12,365 @@ import javax.sql.DataSource;
 import org.apache.james.core.MailAddress;
 import org.apache.james.util.sql.JDBCUtil;
 import org.apache.mailet.Mail;
-import org.slf4j.LoggerFactory;
+
+import com.google.inject.Inject;
 
 import jakarta.mail.Address;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
+import org.postgresql.ds.PGSimpleDataSource;
+import org.apache.james.backends.postgres.PostgresConfiguration;
 
-public class RecognizedListManager extends JWMGenericMailet
-{
-    private DataSource datasource;
+public class RecognizedListManager extends JWMGenericMailet {
+   private DataSource datasource;
 
-    private String action = "";
+   private String action = "";
 
-    private final String update = "UPDATE recognizedlist set lastUpdate=now() where remoteUser=? AND remoteHost=?"; // track how recent entry was used... for pruning of list
-    private final String query  = "SELECT * FROM recognizedlist where remoteUser=? AND remoteHost=?";
-    private final String insert = "INSERT INTO recognizedlist (localUser, localHost, remoteUser, remoteHost, lastUpdate, type) VALUES (?,?,?,?, now(), ?)";
+   private final String update = "UPDATE recognizedlist set lastUpdate=now() where remoteUser=? AND remoteHost=?"; // track
+                                                                                                                   // how
+                                                                                                                   // recent
+                                                                                                                   // entry
+                                                                                                                   // was
+                                                                                                                   // used...
+                                                                                                                   // for
+                                                                                                                   // pruning
+                                                                                                                   // of
+                                                                                                                   // list
+   private final String query = "SELECT * FROM recognizedlist where remoteUser=? AND remoteHost=?";
+   private final String insert = "INSERT INTO recognizedlist (localUser, localHost, remoteUser, remoteHost, lastUpdate, \"TYPE\") VALUES (?,?,?,?, now(), ?)";
 
-    private final String checkSender  = "SELECT * FROM recognizedlist where ((remoteUser LIKE ? AND  remoteHost LIKE ?) OR (remoteUser='*' AND remoteHost LIKE ?)) AND TYPE = ?";
+   private final String checkSender = "SELECT * FROM recognizedlist where ((remoteUser LIKE ? AND  remoteHost LIKE ?) OR (remoteUser='*' AND remoteHost LIKE ?)) AND \"TYPE\" = ?";
 
-    private final static int RECOGNIZEDLISTTYPE_WHITELIST_SENDER  = 1;
-   //  private final static int RECOGNIZEDLISTTYPE_WHITELIST_SUBJECT = 2;
-    private final static int RECOGNIZEDLISTTYPE_BLACKLIST_SENDER  = 3;
-   //  private final static int RECOGNIZEDLISTTYPE_BLACKLIST_SUBJECT = 4;
-   //  private final static int RECOGNIZEDLISTTYPE_BLACKLIST_SENDERNANE = 5;
-     private final static int RECOGNIZEDLISTTYPE_ACCEPTED_EXPIRING  = 6;
+   private final static int RECOGNIZEDLISTTYPE_WHITELIST_SENDER = 1;
+   // private final static int RECOGNIZEDLISTTYPE_WHITELIST_SUBJECT = 2;
+   private final static int RECOGNIZEDLISTTYPE_BLACKLIST_SENDER = 3;
+   // private final static int RECOGNIZEDLISTTYPE_BLACKLIST_SUBJECT = 4;
+   // private final static int RECOGNIZEDLISTTYPE_BLACKLIST_SENDERNANE = 5;
+   // private final static int RECOGNIZEDLISTTYPE_ACCEPTED_EXPIRING = 6;
 
+   @Inject
+   public void setPostgresConfiguration(PostgresConfiguration config) {
 
-    public void setDataSource(DataSource datasource)
-    {
-        this.datasource = datasource;
-    }
+      PGSimpleDataSource ds = new PGSimpleDataSource();
 
-    private final JDBCUtil theJDBCUtil = new JDBCUtil();
-   //  {
-   //      protected void delegatedLog(String logString)
-   //      {
-   //          log("RecognizedListManager: " + logString);
-   //      }
-   //  };
+      ds.setServerNames(new String[] { config.getHost() });
+      ds.setPortNumbers(new int[] { config.getPort() });
+      ds.setDatabaseName(config.getDatabaseName());
 
-    @Override public void init() throws MessagingException
-    {
-//      logger = LoggerFactory.getLogger(RecognizedListManager.class);
-//      String repositoryPath = getInitParameter("repositoryPath");
-//      if (repositoryPath != null)
-//      {
-//          logger.debug("RecognizedListManager repositoryPath: " + repositoryPath);
-//      } else
-//      {
-//          throw new MessagingException("repositoryPath is null");
-//      }
-        action = getInitParameter("action");
-    }
+      ds.setUser(config.getDefaultCredential().getUsername());
+      ds.setPassword(config.getDefaultCredential().getPassword());
 
-    @Override public void service(Mail mail) throws MessagingException
-    {
-        // The RecognizedList table contains whitelist and blacklist entries....
+      ds.setCurrentSchema(config.getDatabaseSchema());
 
-        MimeMessage message = mail.getMessage();
+      this.datasource = ds;
+   }
 
-        MailAddress senderMailAddress = mail.getSender();
-        if (senderMailAddress == null) return;
+   private final JDBCUtil theJDBCUtil = new JDBCUtil();
+   // {
+   // protected void delegatedLog(String logString)
+   // {
+   // log("RecognizedListManager: " + logString);
+   // }
+   // };
 
-        Collection<MailAddress> recipients = mail.getRecipients();
+   @Override
+   public void init() throws MessagingException {
+      // logger = LoggerFactory.getLogger(RecognizedListManager.class);
+      // String repositoryPath = getInitParameter("repositoryPath");
+      // if (repositoryPath != null)
+      // {
+      // logger.debug("RecognizedListManager repositoryPath: " + repositoryPath);
+      // } else
+      // {
+      // throw new MessagingException("repositoryPath is null");
+      // }
+      action = getInitParameter("action");
+   }
 
-        String senderUser = (senderMailAddress.getLocalPart()).toLowerCase(Locale.US);
-        String senderHost = (senderMailAddress.getDomain().name()).toLowerCase(Locale.US);
+   @Override
+   public void service(Mail mail) throws MessagingException {
+      // The RecognizedList table contains whitelist and blacklist entries....
 
-        Connection conn = null;
+      MimeMessage message = mail.getMessage();
 
-// ====== Add recipient to white list =============================================================
+      MailAddress senderMailAddress = mail.getMaybeSender().asOptional().orElse(null);
+      if (senderMailAddress == null)
+         return;
 
-        if ( action.equals( "addToWhiteList" ))
-        {
-           PreparedStatement selectStmt = null;
-           PreparedStatement updateStmt = null;
-           PreparedStatement insertStmt = null;
+      Collection<MailAddress> recipients = mail.getRecipients();
 
-           try
-           {
-               for (MailAddress recipient : recipients)
-               {
-                   ResultSet selectRS = null;
-                   try
-                   {
-                       MailAddress recipientMailAddress = recipient;
-                       String recipientUser = (recipientMailAddress.getLocalPart()).toLowerCase(Locale.US);
-                       String recipientHost = (recipientMailAddress.getDomain().name()).toLowerCase(Locale.US);
+      String senderUser = (senderMailAddress.getLocalPart()).toLowerCase(Locale.US);
+      String senderHost = (senderMailAddress.getDomain().name()).toLowerCase(Locale.US);
 
-                       if (conn == null) conn = datasource.getConnection();
+      Connection conn = null;
 
+      // ====== Add recipient to white list
+      // =============================================================
 
-                       if (selectStmt == null) selectStmt = conn.prepareStatement(query);
+      if (action.equals("addToWhiteList")) {
+         PreparedStatement selectStmt = null;
+         PreparedStatement updateStmt = null;
+         PreparedStatement insertStmt = null;
 
-                       selectStmt.setString(1, recipientUser);
-                       selectStmt.setString(2, recipientHost);
-                       selectRS = selectStmt.executeQuery();
+         try {
+            for (MailAddress recipient : recipients) {
+               ResultSet selectRS = null;
+               try {
+                  MailAddress recipientMailAddress = recipient;
+                  String recipientUser = (recipientMailAddress.getLocalPart()).toLowerCase(Locale.US);
+                  String recipientHost = (recipientMailAddress.getDomain().name()).toLowerCase(Locale.US);
 
-                       if (selectRS.next()) // This address was already in the list
-                       {
+                  if (conn == null)
+                     conn = datasource.getConnection();
 
-                          if (updateStmt == null) updateStmt = conn.prepareStatement(update);
-                          updateStmt.setString(1, recipientUser);
-                          updateStmt.setString(2, recipientHost);
-                          updateStmt.executeUpdate();
-                          logger.debug("RecognizedListManager: whiteList entry exists, lastUpdate=now(): " + recipientUser + " " + recipientHost);
+                  if (selectStmt == null)
+                     selectStmt = conn.prepareStatement(query);
 
-                       }
-                       else
-                       {
+                  selectStmt.setString(1, recipientUser);
+                  selectStmt.setString(2, recipientHost);
+                  selectRS = selectStmt.executeQuery();
 
-                          if (insertStmt == null) insertStmt = conn.prepareStatement(insert);
+                  if (selectRS.next()) // This address was already in the list
+                  {
 
-                          insertStmt.setString(1, senderUser); // sender not used in matcher... but nice to know for pruning purposes
-                          insertStmt.setString(2, senderHost);
-                          insertStmt.setString(3, recipientUser);
-                          insertStmt.setString(4, recipientHost);
-                          insertStmt.setString(5, String.valueOf(RECOGNIZEDLISTTYPE_WHITELIST_SENDER));
-                          insertStmt.executeUpdate();
-                          logger.debug("RecognizedListManager: whiteList new entry: " + recipientUser + " " + recipientHost);
-                       }
-                   }
-                   finally
-                   {
-                       theJDBCUtil.closeJDBCResultSet(selectRS);
-                   }
+                     if (updateStmt == null)
+                        updateStmt = conn.prepareStatement(update);
+                     updateStmt.setString(1, recipientUser);
+                     updateStmt.setString(2, recipientHost);
+                     updateStmt.executeUpdate();
+                     logger.debug("RecognizedListManager: whiteList entry exists, lastUpdate=now(): " + recipientUser
+                           + " " + recipientHost);
 
-                   // Commit our changes if necessary.
-                   if (conn != null && !conn.getAutoCommit())
-                   {
-                       conn.commit();
-                   }
+                  } else {
+
+                     if (insertStmt == null)
+                        insertStmt = conn.prepareStatement(insert);
+
+                     insertStmt.setString(1, senderUser); // sender not used in matcher... but nice to know for pruning
+                                                          // purposes
+                     insertStmt.setString(2, senderHost);
+                     insertStmt.setString(3, recipientUser);
+                     insertStmt.setString(4, recipientHost);
+                     insertStmt.setInt(5, RECOGNIZEDLISTTYPE_WHITELIST_SENDER);
+                     insertStmt.executeUpdate();
+                     logger.debug("RecognizedListManager: whiteList new entry: " + recipientUser + " " + recipientHost);
+                  }
+               } finally {
+                  theJDBCUtil.closeJDBCResultSet(selectRS);
                }
-           }
-           catch (SQLException sqle)
-           {
-               logger.debug("Error accessing database", sqle);
-               throw new MessagingException("Exception thrown", sqle);
-           }
-           finally
-           {
-               theJDBCUtil.closeJDBCStatement(selectStmt);
-               theJDBCUtil.closeJDBCStatement(updateStmt);
-               theJDBCUtil.closeJDBCStatement(insertStmt);
-               theJDBCUtil.closeJDBCConnection(conn);
-           }
-        }
 
-// ====== Check inbound mail to determine if recognized ===========================================
+               // Commit our changes if necessary.
+               if (conn != null && !conn.getAutoCommit()) {
+                  conn.commit();
+               }
+            }
+         } catch (SQLException sqle) {
+            logger.debug("Error accessing database", sqle);
+            throw new MessagingException("Exception thrown", sqle);
+         } finally {
+            theJDBCUtil.closeJDBCStatement(selectStmt);
+            theJDBCUtil.closeJDBCStatement(updateStmt);
+            theJDBCUtil.closeJDBCStatement(insertStmt);
+            theJDBCUtil.closeJDBCConnection(conn);
+         }
+      }
 
-        boolean recognized = false;
+      // ====== Check inbound mail to determine if recognized
+      // ===========================================
 
-        if ( action.equals( "checkRecognized" ))
-        {
-           // 2/25/15 -- free pass for apache forums....
-           String apacheHeader = message.getHeader( "Delivered-To", null );
-           if (( apacheHeader != null )
-            && ( apacheHeader.contains("apache.org") ))
-           {
-                 message.setHeader("X-WhiteListSenderMatch", "true"  );
-                 recognized = true;
-                 logger.debug("RecognizedListManager: apache forum" );
-           }
+      boolean recognized = false;
 
-           // 7/10/10 - JWM - sender address is sometimes cryptic string; use from address where possible
-           try
-           {
-              Address[] fromAddresses = mail.getMessage().getFrom();
-              InternetAddress fromAddress = (InternetAddress) fromAddresses[0];
-              String[] fromAddressParts = fromAddress.getAddress().split("@");
-              senderUser = fromAddressParts[0];
-              senderHost = fromAddressParts[1];
+      if (action.equals("checkRecognized")) {
+         // 2/25/15 -- free pass for apache forums....
+         String apacheHeader = message.getHeader("Delivered-To", null);
+         if ((apacheHeader != null)
+               && (apacheHeader.contains("apache.org"))) {
+            message.setHeader("X-WhiteListSenderMatch", "true");
+            recognized = true;
+            logger.debug("RecognizedListManager: apache forum");
+         }
 
-              message.setHeader("X-SenderEqualsRecipientCount", String.valueOf(recipients.size()));
-              // 5/9/16 check for sender=recipient... huge rash of spam that is bypassing spam filter due to white listing 'sender' (local email addresses)
-              if ( recipients.size() == 1 )
-              {
-                 try
-                 {
-                    for (MailAddress recipient : recipients)
-                    {
-                      MailAddress recipientMailAddress = recipient;
-                      String recipientUser = (recipientMailAddress.getLocalPart()).toLowerCase(Locale.US);
-                      String recipientHost = (recipientMailAddress.getDomain().name()).toLowerCase(Locale.US);
+         // 7/10/10 - JWM - sender address is sometimes cryptic string; use from address
+         // where possible
+         try {
+            Address[] fromAddresses = mail.getMessage().getFrom();
+            InternetAddress fromAddress = (InternetAddress) fromAddresses[0];
+            String[] fromAddressParts = fromAddress.getAddress().split("@");
+            senderUser = fromAddressParts[0];
+            senderHost = fromAddressParts[1];
 
-                      message.setHeader("X-SenderEqualsRecipientTest", recipientUser+"@"+recipientHost + " " + senderUser+"@"+senderHost );
-                      if ( ( senderUser.toUpperCase().equals( recipientUser.toUpperCase() ) )
-                         &&( senderHost.toUpperCase().equals( recipientHost.toUpperCase() ) ) )
-                      {
-                         message.setHeader("X-RecognizedListSpamFlag", "true"  );
-                         message.setHeader("X-SenderEqualsRecipient", "YES"  );
-                         logger.debug("RecognizedListManager: Sender=Recipient (Assume Spam)" );
-                        //  recognized = true;
-                         return;
-                      }
-                      else
-                      {
-                        logger.debug( "RecognizedListManager: sender ?==? recipient : false");
-                        logger.debug( "["+senderUser.toUpperCase()+"] [" + recipientUser.toUpperCase()+"]");
-                        logger.debug( "["+senderHost.toUpperCase()+"] [" + recipientHost.toUpperCase()+"]");
-                      }
-                    }
-                 }
-                 catch (MessagingException | RuntimeException e)
-                 {
-                    logger.debug("RecognizedListManager: Sender=Recipient (Assume Spam Test) " + e);
-                    recognized = true;
-                 }
-              }
-           }
-           catch (MessagingException | RuntimeException e)
-           {
-              // fall back to sender addr
-           }
+            message.setHeader("X-SenderEqualsRecipientCount", String.valueOf(recipients.size()));
+            // 5/9/16 check for sender=recipient... huge rash of spam that is bypassing spam
+            // filter due to white listing 'sender' (local email addresses)
+            if (recipients.size() == 1) {
+               try {
+                  for (MailAddress recipient : recipients) {
+                     MailAddress recipientMailAddress = recipient;
+                     String recipientUser = (recipientMailAddress.getLocalPart()).toLowerCase(Locale.US);
+                     String recipientHost = (recipientMailAddress.getDomain().name()).toLowerCase(Locale.US);
 
-           PreparedStatement checkStmt = null;
-           ResultSet selectRS;
-           try
-           {
-              if (conn == null) conn = datasource.getConnection();
+                     message.setHeader("X-SenderEqualsRecipientTest",
+                           recipientUser + "@" + recipientHost + " " + senderUser + "@" + senderHost);
+                     if ((senderUser.toUpperCase().equals(recipientUser.toUpperCase()))
+                           && (senderHost.toUpperCase().equals(recipientHost.toUpperCase()))) {
+                        message.setSubject("[Sender=Recipient] " + message.getSubject());
+                        message.setHeader("X-SubjectRewritten", message.getSubject());
+                        message.setHeader("X-RecognizedListSpamFlag", "true");
+                        message.setHeader("X-SenderEqualsRecipient", "YES");
+                        logger.debug("RecognizedListManager: Sender=Recipient (Assume Spam)");
+                        // recognized = true;
+                        return;
+                     } else {
+                        logger.debug("RecognizedListManager: sender ?==? recipient : false");
+                        logger.debug("[" + senderUser.toUpperCase() + "] [" + recipientUser.toUpperCase() + "]");
+                        logger.debug("[" + senderHost.toUpperCase() + "] [" + recipientHost.toUpperCase() + "]");
+                     }
+                  }
+               } catch (MessagingException | RuntimeException e) {
+                  logger.debug("RecognizedListManager: Sender=Recipient (Assume Spam Test) " + e);
+                  recognized = true;
+               }
+            }
+         } catch (MessagingException | RuntimeException e) {
+            // fall back to sender addr
+         }
 
-              // check against whitelist_sender
+         PreparedStatement checkStmt = null;
+         ResultSet selectRS;
+         try {
+            if (conn == null)
+               conn = datasource.getConnection();
 
-              if (checkStmt == null) checkStmt = conn.prepareStatement(checkSender);
+            // check against whitelist_sender
 
-              checkStmt.setString(1, senderUser);
-              checkStmt.setString(2, senderHost);
-              checkStmt.setString(3, senderHost);
-              checkStmt.setString(4, String.valueOf(RECOGNIZEDLISTTYPE_WHITELIST_SENDER) );
-              logger.debug( checkStmt.toString() );
-              selectRS = checkStmt.executeQuery();
+            if (checkStmt == null)
+               checkStmt = conn.prepareStatement(checkSender);
 
-              if (selectRS.next())
-              {
-                 message.setHeader("X-Recognized", "["+selectRS.getString("remoteUser")+"] [" + selectRS.getString( "remoteHost" )+"]" );
-                 message.setHeader("X-WhiteListSenderMatch", "true"  );
-                 logger.debug("RecognizedListManager: whiteList sender match: " + senderUser + " " + senderHost);
-              }
+            checkStmt.setString(1, senderUser);
+            checkStmt.setString(2, senderHost);
+            checkStmt.setString(3, senderHost);
+            checkStmt.setInt(4, RECOGNIZEDLISTTYPE_WHITELIST_SENDER);
+            logger.debug(checkStmt.toString());
+            selectRS = checkStmt.executeQuery();
 
-              // check against blacklist_sender
+            if (selectRS.next()) {
+               recognized = true;
+               message.setSubject("[R] " + message.getSubject());
+               message.setHeader("X-SubjectRewritten", message.getSubject());
+               message.setHeader("X-WhiteListSenderData",
+                     "[" + selectRS.getString("remoteUser") + "] [" + selectRS.getString("remoteHost") + "]");
+               message.setHeader("X-WhiteListSenderMatch", "true");
+               logger.debug("RecognizedListManager: whiteList sender match: " + senderUser + " " + senderHost);
+            }
 
-            //   if (checkStmt == null) checkStmt = conn.prepareStatement(checkSender);
+            // check against blacklist_sender
 
-              checkStmt.setString(1, senderUser);
-              checkStmt.setString(2, senderHost);
-              checkStmt.setString(3, senderHost);
-              checkStmt.setString(4, String.valueOf(RECOGNIZEDLISTTYPE_BLACKLIST_SENDER) );
-              logger.debug( checkStmt.toString() );
-              selectRS = checkStmt.executeQuery();
+            // if (checkStmt == null) checkStmt = conn.prepareStatement(checkSender);
 
-              if (selectRS.next())
-              {
-                 message.setHeader("X-BlackListSenderMatch", "true"  );
-                 message.setHeader("X-RecognizedListSpamFlag", "true"  );
-                 logger.debug("RecognizedListManager: blackList sender match: " + senderUser + " " + senderHost);
-                 recognized = true;
-              }
+            checkStmt.setString(1, senderUser);
+            checkStmt.setString(2, senderHost);
+            checkStmt.setString(3, senderHost);
+            checkStmt.setInt(4, RECOGNIZEDLISTTYPE_BLACKLIST_SENDER);
+            logger.debug(checkStmt.toString());
+            selectRS = checkStmt.executeQuery();
 
-              // check against blacklist_sender (using TLD only this time as senderHost
+            if (selectRS.next()) {
+               message.setSubject("[R-BlackList] " + message.getSubject());
+               message.setHeader("X-SubjectRewritten", message.getSubject());
+               message.setHeader("X-BlackListSenderData",
+                     "[" + selectRS.getString("remoteUser") + "] [" + selectRS.getString("remoteHost") + "]");
+               message.setHeader("X-BlackListSenderMatch", "true");
+               message.setHeader("X-RecognizedListSpamFlag", "true");
+               logger.debug("RecognizedListManager: blackList sender match: " + senderUser + " " + senderHost);
+               recognized = true;
+            }
 
-              // Look in RecognizedList table.... senderHost spec can be  *.<tld>   or   *.*.<tld>
-              // first check for *.<tld>
+            // check against blacklist_sender (using TLD only this time as senderHost
 
-              checkStmt = conn.prepareStatement(checkSender);
+            // Look in RecognizedList table.... senderHost spec can be *.<tld> or *.*.<tld>
+            // first check for *.<tld>
 
-              String[] senderHostParts = senderHost.split("\\.");
-              if ( senderHostParts.length == 2 )
-              {
-                 String senderHostTLD = "----";
-                 try
-                 {
-                    senderHostTLD = "*." + senderHostParts[ senderHostParts.length-1 ];
-                 }
-                 catch( Exception e)
-                 {
-                 }
+            checkStmt = conn.prepareStatement(checkSender);
 
-                 checkStmt.setString(1, senderUser);
-                 checkStmt.setString(2, senderHost);
-                 checkStmt.setString(3, senderHostTLD);
-                 checkStmt.setString(4, String.valueOf(RECOGNIZEDLISTTYPE_BLACKLIST_SENDER) );
-                 logger.debug( "TLD " + checkStmt.toString() );
-                 selectRS = checkStmt.executeQuery();
+            String[] senderHostParts = senderHost.split("\\.");
+            if (senderHostParts.length == 2) {
+               String senderHostTLD = "----";
+               try {
+                  senderHostTLD = "*." + senderHostParts[senderHostParts.length - 1];
+               } catch (Exception e) {
+               }
 
-                 if (selectRS.next())
-                 {
-                    message.setHeader("X-BlackListSenderMatch", "true"  );
-                    message.setHeader("X-RecognizedListSpamFlag", "true"  );
-                    logger.debug("RecognizedListManager: blackList sender TLD match: " + senderUser + " " + senderHost);
-                    recognized = true;
-                 }
-              }
+               checkStmt.setString(1, senderUser);
+               checkStmt.setString(2, senderHost);
+               checkStmt.setString(3, senderHostTLD);
+               checkStmt.setInt(4, RECOGNIZEDLISTTYPE_BLACKLIST_SENDER);
+               logger.debug("TLD " + checkStmt.toString());
+               selectRS = checkStmt.executeQuery();
 
-              // check against blacklist_sender (using TLD only this time as senderHost
-              // now check for *.*.<tld>
+               if (selectRS.next()) {
+                  message.setHeader("X-BlackListSenderMatch", "true");
+                  message.setHeader("X-RecognizedListSpamFlag", "true");
+                  message.setSubject("[R-BlackList] " + message.getSubject());
+                  logger.debug("RecognizedListManager: blackList sender TLD match: " + senderUser + " " + senderHost);
+                  recognized = true;
+               }
+            }
 
-            //   if (checkStmt == null) checkStmt = conn.prepareStatement(checkSender);
+            // check against blacklist_sender (using TLD only this time as senderHost
+            // now check for *.*.<tld>
 
-              senderHostParts = senderHost.split("\\.");
-              if ( senderHostParts.length > 2 )   // current rash of uncaught spam is @*.*.<tld>
-              {
-                 String senderHostTLD = "----";
-                 try
-                 {
-                    senderHostTLD = "*.*." + senderHostParts[ senderHostParts.length-1 ];
-                 }
-                 catch( Exception e)
-                 {
-                 }
+            // if (checkStmt == null) checkStmt = conn.prepareStatement(checkSender);
 
-                 checkStmt.setString(1, senderUser);
-                 checkStmt.setString(2, senderHost);
-                 checkStmt.setString(3, senderHostTLD);
-                 checkStmt.setString(4, String.valueOf(RECOGNIZEDLISTTYPE_BLACKLIST_SENDER) );
-                 logger.debug( "TLD " + checkStmt.toString() );
-                 selectRS = checkStmt.executeQuery();
+            senderHostParts = senderHost.split("\\.");
+            if (senderHostParts.length > 2) // current rash of uncaught spam is @*.*.<tld>
+            {
+               String senderHostTLD = "----";
+               try {
+                  senderHostTLD = "*.*." + senderHostParts[senderHostParts.length - 1];
+               } catch (Exception e) {
+               }
 
-                 if (selectRS.next())
-                 {
-                    message.setHeader("X-BlackListSenderMatch", "true"  );
-                    message.setHeader("X-RecognizedListSpamFlag", "true"  );
-                    logger.debug("RecognizedListManager: blackList sender TLD match: " + senderUser + " " + senderHost);
-                    recognized = true;
-                 }
-              }
+               checkStmt.setString(1, senderUser);
+               checkStmt.setString(2, senderHost);
+               checkStmt.setString(3, senderHostTLD);
+               checkStmt.setInt(4, RECOGNIZEDLISTTYPE_BLACKLIST_SENDER);
+               logger.debug("TLD " + checkStmt.toString());
+               selectRS = checkStmt.executeQuery();
 
-              theJDBCUtil.closeJDBCResultSet(selectRS);
+               if (selectRS.next()) {
+                  message.setHeader("X-BlackListSenderMatch", "true");
+                  message.setHeader("X-RecognizedListSpamFlag", "true");
+                  message.setSubject("[R-BlackList] " + message.getSubject());
+                  logger.debug("RecognizedListManager: blackList sender TLD match: " + senderUser + " " + senderHost);
+                  recognized = true;
+               }
+            }
 
-           }
-           catch (SQLException sqle)
-           {
-               logger.debug("Error accessing database", sqle);
-               throw new MessagingException("Exception thrown", sqle);
-           }
-           finally
-           {
-               theJDBCUtil.closeJDBCStatement(checkStmt);
-               theJDBCUtil.closeJDBCConnection(conn);
-           }
-//           message.setHeader("X-Recognized", ""+recognized  );
-           // split into different headers until I can figure out why HeaderContains matcher isn't working
-           if ( recognized )
-           {
-              message.setHeader("X-Recognized", "recognized"  );
-           }
-           else
-           {
-              message.setHeader("X-Not-Recognized", "not-recognized"  );
-           }
-        }
-    }
+            theJDBCUtil.closeJDBCResultSet(selectRS);
 
-     @Override public String getMailetInfo()
-     {
-         return "RecognizedListManager mailet";
-     }
+         } catch (SQLException sqle) {
+            logger.debug("Error accessing database", sqle);
+            throw new MessagingException("Exception thrown", sqle);
+         } finally {
+            theJDBCUtil.closeJDBCStatement(checkStmt);
+            theJDBCUtil.closeJDBCConnection(conn);
+         }
+         // message.setHeader("X-Recognized", ""+recognized );
+         // split into different headers until I can figure out why HeaderContains
+         // matcher isn't working
+         if (recognized) {
+            message.setHeader("X-Recognized", "recognized");
+         } else {
+            message.setHeader("X-Not-Recognized", "not-recognized");
+         }
+      }
+   }
 
- }
+   @Override
+   public String getMailetInfo() {
+      return "RecognizedListManager mailet";
+   }
+
+}

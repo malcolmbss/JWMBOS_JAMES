@@ -41,7 +41,12 @@
       <artifactId>apache-mailet-base</artifactId>
       <scope>provided</scope>
     </dependency>
-
+    <dependency>
+      <groupId>com.google.inject</groupId>
+      <artifactId>guice</artifactId>
+      <version>7.0.0</version>
+      <scope>provided</scope>
+    </dependency>
     <!-- JavaMail / Jakarta Mail API -->
     <!-- <dependency>
     <groupId>com.sun.mail</groupId>
@@ -63,15 +68,43 @@
       <artifactId>slf4j-api</artifactId>
       <scope>provided</scope>
     </dependency>
-    
+
     <dependency>
       <groupId>org.apache.james</groupId>
       <artifactId>james-server-mailets</artifactId>
-      <version>3.9.0</version>
       <!-- Use 'provided' scope since these classes are already present at runtime in the James server -->
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.james</groupId>
+      <artifactId>apache-james-backends-postgres</artifactId>
+      <scope>provided</scope>
+    </dependency>
 
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>42.7.5</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.james</groupId>
+      <artifactId>james-server-mailet-dkim</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.james</groupId>
+      <artifactId>james-server-core</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.james.jdkim</groupId>
+      <artifactId>apache-jdkim-library</artifactId>
+      <version>0.5</version>
+      <scope>provided</scope>
+    </dependency>
   </dependencies>
 
 
@@ -85,6 +118,26 @@
           <source>${java.version}</source>
           <target>${java.version}</target>
         </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <execution>
+            <id>copy-jar</id>
+            <phase>package</phase>
+            <configuration>
+              <target>
+                <copy file="${project.build.directory}/${project.build.finalName}.jar" todir="J:\opt\james-3.9.0-server-postgres-app\extensions-jars" />
+              </target>
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
