@@ -72,6 +72,19 @@ public class JWMOutboundFolderArchive extends GenericMailet {
                     + QUOTED + "\\s*\\)\\s*\\{\\s*fileinto\\s+"
                     + QUOTED + "\\s*;\\s*\\}\\s*",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern SIMPLE_DIRECT_RULE = Pattern.compile(
+            "\\s*if\\s+header\\s+:contains\\s+\"from\"\\s+"
+                    + QUOTED
+                    + "\\s*\\{\\s*fileinto\\s+"
+                    + QUOTED
+                    + "\\s*;\\s*\\}\\s*",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern ARCHIVE_RULE_LABEL = Pattern.compile(
+            "\\s*rule:\\[Enable Outbound Archive\\]\\s*",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern ROUNDCUBE_DISABLED_RULE = Pattern.compile(
+            "\\A\\s*if\\s+false\\s*#",
+            Pattern.CASE_INSENSITIVE);
 
     private final UsersRepository usersRepository;
     private String archiveProcessor;
@@ -91,22 +104,23 @@ public class JWMOutboundFolderArchive extends GenericMailet {
                     "archiveProcessor/outboundKeyword must be simple identifiers");
         }
     }
-@Inject
-   public void setPostgresConfiguration(PostgresConfiguration config) {
 
-      PGSimpleDataSource ds = new PGSimpleDataSource();
+    @Inject
+    public void setPostgresConfiguration(PostgresConfiguration config) {
 
-      ds.setServerNames(new String[] { config.getHost() });
-      ds.setPortNumbers(new int[] { config.getPort() });
-      ds.setDatabaseName(config.getDatabaseName());
+        PGSimpleDataSource ds = new PGSimpleDataSource();
 
-      ds.setUser(config.getDefaultCredential().getUsername());
-      ds.setPassword(config.getDefaultCredential().getPassword());
+        ds.setServerNames(new String[] { config.getHost() });
+        ds.setPortNumbers(new int[] { config.getPort() });
+        ds.setDatabaseName(config.getDatabaseName());
 
-      ds.setCurrentSchema(config.getDatabaseSchema());
+        ds.setUser(config.getDefaultCredential().getUsername());
+        ds.setPassword(config.getDefaultCredential().getPassword());
 
-      this.dataSource = ds;
-   }
+        ds.setCurrentSchema(config.getDatabaseSchema());
+
+        this.dataSource = ds;
+    }
 
     @Override
     public void service(Mail original) throws MessagingException {
@@ -201,6 +215,7 @@ public class JWMOutboundFolderArchive extends GenericMailet {
         try (Connection connection = dataSource.getConnection();
                 PreparedStatement statement = connection.prepareStatement(active_sieve_script)) {
             statement.setString(1, owner.asString());
+            LOGGER.debug("PreparedStatement: {}", statement);
             try (ResultSet rows = statement.executeQuery()) {
                 return rows.next() ? rows.getString("script_content") : "";
             }
@@ -215,7 +230,7 @@ public class JWMOutboundFolderArchive extends GenericMailet {
     public static Set<String> resolveFolders(
             MimeMessage message,
             String activeSieveScript) throws MessagingException {
-
+        LOGGER.debug("Active Sieve Script {}", activeSieveScript);
         Set<String> folders = new LinkedHashSet<>();
 
         if (message == null) {
@@ -230,8 +245,14 @@ public class JWMOutboundFolderArchive extends GenericMailet {
             return folders;
         }
 
-        String cleaned = removeComments(
-                activeSieveScript == null ? "" : activeSieveScript);
+        String script = activeSieveScript == null ? "" : activeSieveScript;
+        // Check before stripping comments: Roundcube keeps the rule name
+        // and disabled-state information in comments.
+        if (isOutboundArchiveDisabled(script)) {
+            return folders;
+        }
+
+        String cleaned = removeComments(script);
 
         List<String> statements = cleaned == null ? null : topLevelStatements(cleaned);
 
@@ -244,16 +265,22 @@ public class JWMOutboundFolderArchive extends GenericMailet {
 
         // Preserve Sieve rule order for matching folders.
         for (String statement : statements) {
+            LOGGER.debug("Statement: {}", statement);
             Matcher rule = SIMPLE_RULE.matcher(statement);
 
             if (!rule.matches()) {
-                continue;
+                rule = SIMPLE_DIRECT_RULE.matcher(statement);
+
+                if (!rule.matches()) {
+                    continue;
+                }
             }
 
             String needle = unescape(rule.group(1))
                     .toLowerCase(Locale.ROOT);
             String folder = unescape(rule.group(2));
-
+            LOGGER.debug("Needle: {}", needle);
+            LOGGER.debug("Folder: {}", folder);
             if (needle.isBlank() || folder.isBlank()
                     || folder.indexOf('\0') >= 0
                     || folder.indexOf('\r') >= 0
@@ -278,6 +305,55 @@ public class JWMOutboundFolderArchive extends GenericMailet {
         }
 
         return folders;
+    }
+
+    /**
+     * Recognizes Roundcube's named, disabled top-level rule format.
+     * Ignores text inside strings, block comments, and nested rule bodies.
+     * If duplicate named markers exist, any disabled marker wins.
+     */
+    private static boolean isOutboundArchiveDisabled(String script) {
+        boolean quoted = false;
+        int depth = 0;
+        for (int i = 0; i < script.length(); i++) {
+            char c = script.charAt(i);
+            if (quoted) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    quoted = false;
+                }
+            } else if (c == '"') {
+                quoted = true;
+            } else if (c == '/' && i + 1 < script.length()
+                    && script.charAt(i + 1) == '*') {
+                int end = script.indexOf("*/", i + 2);
+                if (end < 0) {
+                    return false;
+                }
+                i = end + 1;
+            } else if (c == '#') {
+                int start = i + 1;
+                int end = start;
+                while (end < script.length() && script.charAt(end) != '\n'
+                        && script.charAt(end) != '\r') {
+                    end++;
+                }
+                if (depth == 0
+                        && ARCHIVE_RULE_LABEL.matcher(
+                                script.substring(start, end)).matches()
+                        && ROUNDCUBE_DISABLED_RULE.matcher(
+                                script.substring(end)).find()) {
+                    return true;
+                }
+                i = end - 1;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
+        }
+        return false;
     }
 
     private static void addRecipients(MimeMessage message,
